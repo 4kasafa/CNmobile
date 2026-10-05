@@ -1,0 +1,9 @@
+# Node
+node_modules/
+dist/
+
+# Capacitor Android build output (source android/ tetap dicommit)
+android/build/
+android/.gradle/
+android/app/build/
+android/capacitor-cordova-android-plugins/build/
