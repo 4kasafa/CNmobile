@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050b0f">
+<meta name="description" content="cn:setoran — pantau selisih kasir dari HP.">
+<title>cn:setoran</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="term">
+
+  <header id="topbar">
+    <div class="prompt-wrap">
+      <span class="ps1">┌──<span class="pu">(setoran@cn)</span><span class="pp" id="pp-path">-[setoran]</span></span>
+      <span class="ps2"><span class="psym">└─$</span><select id="nav-select" aria-label="Pindah layar"><option value="setoran" selected>[setoran]</option><option value="live">[live]</option><option value="print">[print]</option></select></span>
+    </div>
+    <button id="btn-refresh" type="button" aria-label="Muat ulang">↻</button>
+  </header>
+
+  <section id="view-setoran" aria-label="Setoran">
+  <section id="login-section" aria-label="Masuk">
+    <p class="cmdline">┌──<span class="pu">(setoran@cn)</span><span class="pp">-[login]</span></p>
+    <div class="field">
+      <label for="in-email">└─ email</label>
+      <input id="in-email" type="email" inputmode="email" autocomplete="username" placeholder="kasir@toko.id">
+    </div>
+    <div class="field">
+      <label for="in-pass">└─ kata sandi</label>
+      <input id="in-pass" type="password" autocomplete="current-password" placeholder="••••••••">
+    </div>
+    <label class="row check"><input id="chk-remember" type="checkbox" checked> ingat di HP ini</label>
+    <button id="btn-login" type="button">[masuk]</button>
+    <div id="login-msg" class="msg" aria-live="polite"></div>
+    <p class="hint">token sesi hanya di memori. kata sandi tidak dikirim ke mana pun selain GAS.</p>
+  </section>
+
+  <div id="session-line" hidden>
+    <span id="session-info">└─ belum login</span>
+    <span class="cmds"><button id="btn-show-login" type="button">[ganti akun]</button> <button id="btn-logout" type="button">[keluar]</button></span>
+  </div>
+
+  <section id="banner" hidden>
+    <span id="kasir-info">belum login</span>
+    <span id="sync-status">[--]</span>
+  </section>
+
+  <section id="summary" hidden aria-label="Ringkasan periode">
+    <p class="cmdline">┌──<span class="pu">(setoran@cn)</span><span class="pp">-[ringkas]</span> <span id="periode-label" class="dim">----.--</span></p>
+    <p class="sumline">└─ tx: <span id="val-tx">0</span> · kurang: <span id="val-kurang">Rp 0</span> · lebih: <span id="val-lebih">Rp 0</span></p>
+  </section>
+
+  <div id="offline-banner" class="msg err" hidden role="status">
+    <span id="offline-text">└─ offline: baca cache</span>
+    <button id="btn-retry" type="button">[coba lagi]</button>
+  </div>
+
+  <main id="tx-list" aria-live="polite"></main>
+  </section>
+
+  <section id="view-live" hidden aria-label="Live">
+    <p class="cmdline">┌──<span class="pu">(setoran@cn)</span><span class="pp">-[live]</span></p>
+    <p class="dim">└─ live: segera (M2, sambung LAN + print)</p>
+  </section>
+
+  <section id="view-print" hidden aria-label="Print">
+    <p class="cmdline">┌──<span class="pu">(setoran@cn)</span><span class="pp">-[print]</span></p>
+    <p class="dim">└─ print: segera (perintah via Live, M2)</p>
+  </section>
+
+  <div id="sheet-wrap" hidden>
+    <div id="sheet" role="dialog" aria-modal="false" aria-labelledby="sheet-title">
+      <p class="cmdline"><span id="sheet-title">konflik: --</span> <button id="btn-sheet-close" type="button" aria-label="Tutup tanpa memilih">[tutup]</button></p>
+      <p class="sheet-block"><span class="dim">lokal:</span> <span id="sheet-lokal">--</span></p>
+      <p class="sheet-block"><span class="dim">gas:</span> <span id="sheet-gas">--</span></p>
+      <p class="sheet-btns">
+        <button id="btn-use-lokal" type="button">[pakai lokal]</button>
+        <button id="btn-use-gas" type="button">[pakai gas]</button>
+      </p>
+    </div>
+  </div>
+
+  </div>
+<script src="js/gas.js" defer></script>
+<script src="js/conflict.js" defer></script>
+<script src="js/seed_laku.js" defer></script>
+<script src="js/setoran.js" defer></script>
+<script src="js/app.js" defer></script>
+</body>
+</html>

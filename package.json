@@ -1,0 +1,14 @@
+{
+  "name": "cnmobile",
+  "version": "0.1.0",
+  "private": true,
+  "description": "cn:setoran — pantau selisih kasir dari HP (Capacitor wrapper, web murni di www/)",
+  "scripts": {
+    "sync": "cap sync android"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/cli": "^7.0.0",
+    "@capacitor/core": "^7.0.0"
+  }
+}
