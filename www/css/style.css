@@ -10,7 +10,7 @@
   font-weight: 700; font-style: normal; font-display: swap;
 }
 :root {
-  --abyss: #050b0f;
+  --abyss: #000;
   --edge: #1d333e;     /* garis pemisah */
   --sonar: #6ee7ff;    /* perintah / interaktif */
   --kali: #4c8dff;     /* biru prompt ala Kali */
@@ -43,7 +43,7 @@ body::after {
 /* ——— baris perintah ——— */
 #topbar {
   display: flex; justify-content: space-between; align-items: center; gap: 10px;
-  padding: 10px 0 4px; position: sticky; top: 0; z-index: 20; background: var(--abyss);
+  padding: calc(10px + env(safe-area-inset-top, 0px)) 0 4px; position: sticky; top: 0; z-index: 20; background: var(--abyss);
   border-bottom: 1px solid var(--edge);
 }
 .prompt-wrap { min-width: 0; }
@@ -52,8 +52,18 @@ body::after {
 .ps1 .pp, .pp { color: var(--kali); }
 .ps2 { display: flex; align-items: center; gap: 8px; line-height: 1.35; }
 .ps2 .psym { color: var(--kaliuser); font-weight: 700; }
-#nav-select { font: inherit; font-size: 10px; color: var(--sonar); background: none; border: 0; border-bottom: 1px solid var(--edge); border-radius: 0; min-height: 0; padding: 2px 4px; line-height: 1.35; max-width: 60vw; }
-#nav-select option { color: #000; }
+#nav-select, #in-shift { font: inherit; font-size: 10px; color: var(--sonar); background: none; border: 0; border-radius: 0; min-height: 0; padding: 2px 4px; line-height: 1.35; max-width: 60vw; }
+#nav-select option, #in-shift option { color: #000; }
+/* ponytail: baris meta lipat reuse #session-line; select isi .field ikut sentuh 44px */
+#print-meta-line {
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  padding: 8px 0; margin: 0; font-size: 10px;
+  border-bottom: 1px dashed var(--edge);
+}
+#print-meta-info { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#print-meta-line .cmds { white-space: nowrap; }
+#print-meta-line .cmds button { min-height: 24px; min-width: 0; padding: 2px 4px; }
+#print-meta-form .field select { flex: 1 1 auto; min-width: 0; min-height: 44px; }
 #btn-refresh { font-size: 16px; padding: 10px 8px; }
 .cmdline { margin: 14px 0 4px; color: var(--sonar); }
 /* ponytail: spesifisitas 0-2-0 agar warna prompt menang atas .cmdline */
@@ -69,23 +79,30 @@ button {
 }
 button:active { color: var(--paper); }
 button:disabled { color: var(--fog); opacity: .55; cursor: default; }
-button:focus-visible, input:focus-visible { outline: 2px solid var(--sonar); outline-offset: 2px; }
+button:focus-visible { outline: 2px solid var(--sonar); outline-offset: 2px; }
+/* ponytail: feel terminal — tanpa focus ring web di input + dropdown */
+input:focus, input:focus-visible, select:focus, select:focus-visible { outline: none !important; outline-offset: 0; box-shadow: none; border: 0; }
 input[type="email"], input[type="password"], input[type="text"] {
-  font: inherit; color: var(--paper); background: none;
-  border: 0; border-bottom: 1px solid var(--edge); border-radius: 0;
-  min-height: 48px; padding: 10px 2px; width: 100%;
+  font: inherit; font-size: 9px; font-weight: 400; color: var(--fog); background: none;
+  border: 0; border-radius: 0;
+  min-height: 32px; padding: 4px 2px; width: 100%;
 }
 input::placeholder { color: #54676f; }
 
 /* ——— form login: baris prompt ——— */
-.field { margin: 8px 0; }
-.field label { display: block; font-size: 9px; color: var(--fog); }
-.row { display: flex; align-items: center; gap: 10px; margin: 10px 0; }
+#login-section .cmdline { margin: 8px 0 2px; }
+.field { display: flex; align-items: center; gap: 6px; margin: 0 0 2px; }
+.field label { display: inline; font-size: 9px; color: var(--fog); white-space: nowrap; margin: 0; line-height: 1.35; }
+.field input { flex: 1 1 auto; width: auto; min-width: 0; min-height: 24px; padding: 2px; }
+.row { display: flex; align-items: center; gap: 10px; margin: 4px 0; }
 .row.check { color: var(--fog); font-size: 10px; }
-.row.check input { width: 22px; height: 22px; accent-color: var(--sonar); }
-#login-section { border-bottom: 1px dashed var(--edge); padding-bottom: 10px; }
-.hint { color: var(--fog); font-size: 9px; margin: 8px 0 0; }
-.msg { margin: 8px 0 0; min-height: 1.5em; font-size: 10px; }
+.login-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0; }
+.login-actions .row.check { margin: 0; }
+.row.check input { width: 16px; height: 16px; accent-color: var(--sonar); }
+#btn-login { min-height: 32px; padding: 4px 2px; }
+#login-section { border-bottom: 1px dashed var(--edge); padding-bottom: 4px; }
+.hint { color: var(--fog); font-size: 9px; margin: 4px 0 0; }
+.msg { margin: 4px 0 0; min-height: 1.5em; font-size: 10px; }
 .msg.err, .err { color: var(--coral); }
 .msg.ok { color: var(--mint); }
 
@@ -96,6 +113,8 @@ input::placeholder { color: #54676f; }
   border-bottom: 1px dashed var(--edge);
 }
 #session-line .cmds { white-space: nowrap; }
+#session-line.collapsed .cmds { display: none; }
+#session-line.collapsed { gap: 4px; }
 #kasir-info, #session-info { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #sync-status { white-space: nowrap; color: var(--signal); font-weight: 700; }
 #sync-status.ok { color: var(--mint); }
@@ -134,9 +153,73 @@ input::placeholder { color: #54676f; }
 /* ——— konflik: kotak garis tunggal, tanpa blur ——— */
 #sheet-wrap {
   position: fixed; inset: 0; z-index: 40; display: flex; justify-content: center; align-items: flex-end;
-  padding: 14px; background: rgba(3, 7, 10, .82);
+  padding: 14px; background: rgba(0, 0, 0, .85);
 }
 #sheet { width: 100%; max-width: 560px; border: 1px solid var(--signal); background: var(--abyss); padding: 4px 14px 10px; }
 #sheet .cmdline { color: var(--signal); display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .sheet-block { margin: 6px 0; font-size: 10px; }
 .sheet-btns { display: flex; gap: 16px; margin: 6px 0 0; }
+/* ——— live sesi manual: baris prompt, reuse .tx/.tag/.msg ——— */
+#live-bar {
+  display: flex; align-items: center; gap: 6px; padding: 0 0 2px; border-bottom: 1px dashed var(--edge);
+}
+#view-live .cmdline { margin: 8px 0 2px; }
+#live-bar label { display: inline; color: var(--fog); font-size: 9px; line-height: 1.35; margin: 0; white-space: nowrap; }
+#in-lan {
+  font: inherit; font-size: 9px; font-weight: 400; color: var(--fog); background: none;
+  border: 0; border-radius: 0;
+  min-height: 24px; padding: 2px; flex: 1 1 auto; width: auto; min-width: 0;
+}
+#live-bar .cmds { display: flex; align-items: center; gap: 4px; white-space: nowrap; margin-top: 0; }
+#live-bar button { min-height: 24px; min-width: 0; padding: 2px 4px; }
+#live-status { white-space: nowrap; color: var(--signal); font-weight: 700; }
+#live-status.ok { color: var(--mint); }
+#live-status.bad { color: var(--coral); }
+#live-banner {
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  padding: 8px 0; margin: 0; font-size: 10px;
+  border-bottom: 1px solid var(--coral);
+}
+#live-list { margin-top: 4px; }
+#live-history { margin-top: 10px; border-top: 1px dashed var(--edge); padding-top: 4px; }
+/* ——— print: baris prompt, reuse .tx/.field/.sumline/.msg ——— */
+#view-print .cmdline { margin: 8px 0 2px; }
+#print-expense { padding: 2px 0; margin: 0 0 8px; border-bottom: 1px dashed var(--edge); }
+/* ponytail: ringkas expense menempel di baris header — tanpa baris ekstra */
+#expense-head .cmds { display: inline-flex; gap: 4px; white-space: nowrap; }
+#expense-head button { min-height: 24px; min-width: 0; padding: 2px 4px; }
+/* ponytail: blok prompt 2 baris tanpa border — baris-1 nominal+subtotal, baris-2 input */
+.denom { display: block; margin: 0; padding: 0px 0; }
+.denom-top { margin: 0; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.denom-top .pu { color: var(--kaliuser); font-weight: 700; }
+.denom-top .pp { color: var(--kali); }
+.denom-top .sub { color: var(--sonar); }
+.denom .field { margin: 0; }
+.denom input {
+  font: inherit; font-size: 10px; color: var(--paper); background: none;
+  border: 0; border-radius: 0; min-height: 32px; padding: 2px 4px;
+}
+.denom input::placeholder { color: #54676f; }
+#print-sumline { margin: 8px 0 0; }
+#print-subline { margin: 0 0 4px; }
+#val-fisik, #val-jual { color: var(--paper); }
+#val-sys { color: var(--signal); }
+#val-diff.neg { color: var(--coral); }
+#val-diff.pos { color: var(--mint); }
+#print-actions, #print-preview-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+#print-actions button, #print-preview-actions button { min-height: 44px; padding: 10px 4px; }
+#view-print .cmds { display: inline-flex; gap: 4px; }
+#view-print .cmds button { min-height: 24px; min-width: 0; padding: 2px 4px; }
+#view-print .cmds button.on { color: var(--paper); font-weight: 700; }
+/* ponytail: satu-satunya blok kertas — isi struk, bukan chrome UI */
+#receipt-pre {
+  background: #fff; color: #000; font-family: "Courier New", ui-monospace, monospace;
+  font-size: 11px; line-height: 1.45; white-space: pre-wrap; word-break: break-word;
+  margin: 6px 0; padding: 12px 10px; border: 1px solid var(--edge);
+}
+#print-history { margin-top: 10px; border-top: 1px dashed var(--edge); padding-top: 4px; }
+#exp-amt, #exp-note {
+  font: inherit; font-size: 10px; color: var(--paper); background: none;
+  border: 0; border-bottom: 1px dashed var(--edge); border-radius: 0;
+  min-height: 44px; padding: 6px 2px; width: 100%;
+}

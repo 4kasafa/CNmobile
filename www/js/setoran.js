@@ -20,11 +20,13 @@
     return p(d.getDate()) + "/" + p(d.getMonth() + 1) + "/" + d.getFullYear() + " " + p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
   }
 
-  var LS_CRED = "cn_cred", LS_CACHE = "cn_setoran_cache";
+  var LS_CRED = "cn_cred", LS_CACHE = "cn_setoran_cache", LS_FOLD = "cn_session_collapsed";
   var state = {
     token: null, email: "", password: "", cashier: "",
     cache: [], lastSync: null, lastError: null, syncing: false, syncSeq: 0, conflictKey: null,
+    collapsed: true, // gabung session-line + banner jadi 1 baris
     showLogin: false, // form terbuka manual walau sudah login (ganti akun)
+    autoLogin: false, // kredensial tersimpan: lipat form ala login selama login background
   };
 
   function loadJSON(k) { try { var v = JSON.parse(localStorage.getItem(k)); return v && typeof v === "object" ? v : null; } catch (e) { return null; } }
@@ -122,6 +124,22 @@
     });
   }
 
+  // gabung 1 baris: pindah node #sync-status ke session-line (collapse)
+  // atau kembalikan ke banner (expand). Tanpa id ganda.
+  function placeStatus(fold) {
+    var line = $("session-line"), banner = $("banner"), st = $("sync-status");
+    if (!line || !banner || !st) return;
+    if (fold) line.appendChild(st);
+    else banner.appendChild(st);
+    line.classList.toggle("collapsed", !!fold);
+  }
+  function setCollapsed(fold) {
+    state.collapsed = !!fold;
+    try { localStorage.setItem(LS_FOLD, state.collapsed ? "1" : "0"); } catch (e) {}
+    placeStatus(state.collapsed);
+  }
+  function toggleFold() { setCollapsed(!state.collapsed); renderAll(); }
+
   function renderAll() {
     renderSummary();
     renderList();
@@ -129,14 +147,20 @@
     var logged = !!state.token;
     // cache tampil instan walau belum login (mode cache); login menimpa dengan data segar
     var showData = logged || state.cache.length > 0;
-    $("banner").hidden = !showData;
+    var lineVisible = (logged || state.autoLogin) && !state.showLogin;
+    // ponytail: collapse = 1 baris (login-info + sync), banner + tombol disembunyikan.
+    // baris tak tampil (logout/ganti-akun) -> status tetap di banner.
+    placeStatus(lineVisible && state.collapsed);
+    $("banner").hidden = !showData || (lineVisible && state.collapsed);
     $("summary").hidden = !showData;
-    // form hanya terbuka saat belum login; setelah login melipat jadi baris sesi
-    $("login-section").hidden = logged && !state.showLogin;
-    $("session-line").hidden = !logged || state.showLogin;
+    // form hanya terbuka saat belum login; selama auto-login tampil ala sudah login
+    $("login-section").hidden = (logged || state.autoLogin) && !state.showLogin;
+    $("session-line").hidden = !(logged || state.autoLogin) || state.showLogin;
     if (logged) {
       $("kasir-info").textContent = state.cashier + " <" + state.email + ">";
       $("session-info").textContent = "└─ login sebagai " + state.email;
+    } else if (state.autoLogin) {
+      $("session-info").textContent = "└─ menghubungi GAS...";
     } else if (state.cache.length) {
       $("kasir-info").textContent = state.email + " (cache, belum login)";
     }
@@ -144,6 +168,9 @@
 
   function openLogin(focus) {
     state.showLogin = true;
+    // ganti akun manual membatalkan auto-login kredensial lama yang sedang terbang
+    state.syncSeq++;
+    state.autoLogin = false;
     $("login-section").hidden = false;
     $("session-line").hidden = true;
     if (focus !== false) $("in-email").focus();
@@ -154,6 +181,7 @@
     state.token = null;
     state.password = "";
     state.showLogin = false;
+    state.autoLogin = false;
     state.syncing = false;
     state.syncSeq++; // batalkan sync berjalan via stale-guard
     state.lastError = null;
@@ -245,7 +273,10 @@
     if (!email || !pass) { msg.textContent = "└─ isi email + pass dulu."; msg.className = "msg err"; return; }
     msg.textContent = "└─ menghubungi GAS...";
     msg.className = "msg";
+    var my = state.syncSeq; // batal bila logout/ganti-akun terjadi selama await
     var res = await Gas.login(email, pass);
+    if (my !== state.syncSeq) return; // basi: jangan timpa sesi baru
+    state.autoLogin = false;
     if (!res || !res.success) {
       msg.textContent = "└─ gagal: " + ((res && res.message) || "tanpa respon");
       msg.className = "msg err";
@@ -291,6 +322,20 @@
   }
 
   document.addEventListener("DOMContentLoaded", function () {
+    try { state.collapsed = localStorage.getItem(LS_FOLD) !== "0"; } catch (e) {}
+    var line = $("session-line");
+    if (line) {
+      line.title = "dobel-ketuk: buka/tutup";
+      line.addEventListener("dblclick", function (e) {
+        if (e.target && e.target.closest && e.target.closest("button")) return;
+        toggleFold();
+      });
+      // ponytail: fallback HP (dblclick tak andal) — ketuk status ikut toggle
+      line.addEventListener("click", function (e) {
+        var t = e.target;
+        if (t && (t.id === "sync-status" || (t.closest && t.closest("#sync-status")))) toggleFold();
+      });
+    }
     var cred = loadJSON(LS_CRED);
     if (cred) {
       if (cred.email) $("in-email").value = cred.email;
@@ -311,7 +356,8 @@
     document.addEventListener("visibilitychange", function () { if (!document.hidden) bootSync(); });
     window.addEventListener("online", bootSync);
     if (cred && cred.email && cred.password) {
-      // render cache lokal dulu (instan, tanpa network), login jalan di background
+      // render ala login dulu (form lipat), login jalan di background
+      state.autoLogin = true;
       state.email = cred.email;
       state.password = cred.password;
       loadCache();

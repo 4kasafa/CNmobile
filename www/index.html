@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#050b0f">
+<meta name="theme-color" content="#000">
 <meta name="description" content="cn:setoran — pantau selisih kasir dari HP.">
 <title>cn:setoran</title>
 <link rel="stylesheet" href="css/style.css">
@@ -30,8 +30,10 @@
       <label for="in-pass">└─ kata sandi</label>
       <input id="in-pass" type="password" autocomplete="current-password" placeholder="••••••••">
     </div>
-    <label class="row check"><input id="chk-remember" type="checkbox" checked> ingat di HP ini</label>
-    <button id="btn-login" type="button">[masuk]</button>
+    <div class="login-actions">
+      <label class="row check"><input id="chk-remember" type="checkbox" checked> ingat di HP ini</label>
+      <button id="btn-login" type="button">[masuk]</button>
+    </div>
     <div id="login-msg" class="msg" aria-live="polite"></div>
     <p class="hint">token sesi hanya di memori. kata sandi tidak dikirim ke mana pun selain GAS.</p>
   </section>
@@ -61,12 +63,65 @@
 
   <section id="view-live" hidden aria-label="Live">
     <p class="cmdline">┌──<span class="pu">(setoran@cn)</span><span class="pp">-[live]</span></p>
-    <p class="dim">└─ live: segera (M2, sambung LAN + print)</p>
+    <div id="live-bar">
+      <label for="in-lan">└─ pc</label>
+      <input id="in-lan" type="text" inputmode="url" placeholder="http://192.168.1.5:8765">
+      <span class="cmds"><button id="btn-live-toggle" type="button">[buka]</button> <span id="live-status">[--]</span></span>
+    </div>
+    <div id="live-banner" class="msg err" hidden role="status">
+      <span id="live-banner-text">└─ belum lengkap</span>
+      <button id="btn-live-retry" type="button">[coba lagi]</button>
+    </div>
+    <main id="live-list" aria-live="polite"></main>
+    <div id="live-history" aria-label="Riwayat sesi"></div>
   </section>
 
   <section id="view-print" hidden aria-label="Print">
-    <p class="cmdline">┌──<span class="pu">(setoran@cn)</span><span class="pp">-[print]</span></p>
-    <p class="dim">└─ print: segera (perintah via Live, M2)</p>
+    <p class="cmdline">┌──<span class="pu">(setoran@cn)</span><span class="pp">-[print]</span> <span id="print-session" class="dim">--</span></p>
+    <div id="print-meta-line" hidden>
+      <span id="print-meta-info">└─ belum ada detail</span>
+      <span class="cmds"><button id="btn-meta-edit" type="button">[ubah]</button></span>
+    </div>
+    <div id="print-meta-form">
+      <div class="field">
+        <label for="in-kasir">└─ kasir</label>
+        <input id="in-kasir" type="text" autocomplete="off" placeholder="nama kasir (dari Setoran)">
+      </div>
+      <div class="field">
+        <label for="in-cabang">└─ cabang</label>
+        <input id="in-cabang" type="text" autocomplete="off" placeholder="SUMBER REJO">
+      </div>
+      <div class="field">
+        <label for="in-shift">└─ shift</label>
+        <select id="in-shift" aria-label="Shift"><option value="">--</option><option value="Pagi">PAGI</option><option value="Malam">MALAM</option></select>
+      </div>
+      <div class="row">
+        <button id="btn-print-meta-close" type="button">[tutup]</button>
+        <button id="btn-print-meta-pull" type="button">[ambil setoran]</button>
+      </div>
+    </div>
+    <div id="print-expense">
+      <p class="cmdline" id="expense-head">└─ pengeluaran <span id="expense-sum" class="dim"></span><span class="cmds"><button id="btn-exp-open" type="button">[+]</button></span></p>
+    </div>
+    <div id="denom-list" aria-label="Rincian denominasi"></div>
+    <p id="print-sumline" class="sumline">└─ fisik: <span id="val-fisik">Rp 0</span> · sys: <span id="val-sys">—</span> · selisih: <span id="val-diff">—</span></p>
+    <p id="print-subline" class="dim">└─ nontunai: <span id="val-nontunai">Rp 0</span> · jual: <span id="val-jual">Rp 0</span></p>
+    <div id="print-actions">
+      <button id="btn-print-preview" type="button">[pratinjau]</button>
+      <button id="btn-print-save" type="button">[simpan]</button>
+      <button id="btn-print-send" type="button" disabled title="tunggu desktop (M2)">[kirim:off]</button>
+      <button id="btn-print-clear" type="button">[bersih]</button>
+    </div>
+    <div id="print-msg" class="msg" aria-live="polite"></div>
+    <div id="print-preview" hidden>
+      <p class="cmdline">└─ pratinjau <span class="cmds"><button id="btn-size-58" type="button">[58]</button><button id="btn-size-80" type="button">[80]</button></span></p>
+      <pre id="receipt-pre" aria-label="Pratinjau struk"></pre>
+      <div id="print-preview-actions">
+        <button id="btn-print-back" type="button">[kembali]</button>
+        <button id="btn-print-send2" type="button" disabled title="tunggu desktop (M2)">[simpan &amp; kirim:off]</button>
+      </div>
+    </div>
+    <div id="print-history" aria-label="Riwayat hitung"></div>
   </section>
 
   <div id="sheet-wrap" hidden>
@@ -86,6 +141,11 @@
 <script src="js/conflict.js" defer></script>
 <script src="js/seed_laku.js" defer></script>
 <script src="js/setoran.js" defer></script>
+<script src="js/config.js" defer></script>
+<script src="js/store.js" defer></script>
+<script src="js/lan.js" defer></script>
+<script src="js/live.js" defer></script>
+<script src="js/print.js" defer></script>
 <script src="js/app.js" defer></script>
 </body>
 </html>

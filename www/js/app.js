@@ -14,6 +14,16 @@
     if (sel && sel.value !== v) sel.value = v;
   }
   document.addEventListener("DOMContentLoaded", function () {
+    // ponytail: akses plugin lewat global Capacitor.Plugins — tanpa bundler di repo ini.
+    // ESM `import { StatusBar } from '@capacitor/status-bar'` ditolak: butuh build step.
+    try {
+      var SB = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.StatusBar;
+      if (SB) {
+        // overlay:false -> WebView mulai DI BAWAH status bar, jadi header sticky tidak ketutup
+        SB.setOverlaysWebView({ overlay: false });
+        SB.setBackgroundColor({ color: "#000000" }); // sama dengan --abyss, hindari flash putih
+      }
+    } catch (e3) {}
     var v = "setoran";
     try { v = localStorage.getItem(KEY) || "setoran"; } catch (e) {}
     if (["setoran", "live", "print"].indexOf(v) < 0) v = "setoran";
