@@ -100,23 +100,10 @@ var Store = (function () {
     return cur.slice().sort(function (a, b) { return toInt(b.server_id) - toInt(a.server_id); }); // terbaru di atas
   }
 
-  // riwayat hitung print (ganti CALC_HISTORY_FILE desktop): cap 50, terbaru di atas
-  var K_CALC = "cn_calc_history";
-  async function saveCalc(entry) {
-    var list = load(K_CALC, []);
-    list.unshift(entry || {});
-    save(K_CALC, list.slice(0, 50)); // ponytail: 50 cukup, SQLite bila butuh ribuan
-    return true;
-  }
-  async function listCalc(limit) {
-    return load(K_CALC, []).slice(0, limit || 20);
-  }
-
   return {
     init: init, createSession: createSession, getSession: getSession,
     listSessions: listSessions, patchSession: patchSession, closeSession: closeSession,
     getLastSeen: getLastSeen, setLastSeen: setLastSeen,
     upsertTx: upsertTx, listTx: listTx,
-    saveCalc: saveCalc, listCalc: listCalc,
   };
 })();

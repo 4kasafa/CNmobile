@@ -217,7 +217,6 @@ input::placeholder { color: #54676f; }
   font-size: 11px; line-height: 1.45; white-space: pre-wrap; word-break: break-word;
   margin: 6px 0; padding: 12px 10px; border: 1px solid var(--edge);
 }
-#print-history { margin-top: 10px; border-top: 1px dashed var(--edge); padding-top: 4px; }
 #exp-amt, #exp-note {
   font: inherit; font-size: 10px; color: var(--paper); background: none;
   border: 0; border-bottom: 1px dashed var(--edge); border-radius: 0;

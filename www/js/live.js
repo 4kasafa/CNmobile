@@ -16,6 +16,7 @@ var Live = (function () {
   }
 
   var S = { sessionId: null, base: "", seq: 0, timer: null, polling: false, everBroken: false };
+  var lastTap = { id: "", t: 0 }; // dobel-tap manual: dblclick bawaan tak andal di touchscreen HP
 
   function status(txt, cls) {
     var el = $("live-status");
@@ -49,15 +50,18 @@ var Live = (function () {
   async function renderHistory() {
     var box = $("live-history");
     if (!box) return;
+    if (S.sessionId) { box.hidden = true; box.innerHTML = ""; return; } // sesi dibuka -> riwayat hidden total
+    box.hidden = false;
     var ss = await Store.listSessions(10);
     if (!ss.length) { box.innerHTML = '<p class="dim">└─ riwayat: kosong.</p>'; return; }
     box.innerHTML = "<p class=\"cmdline\">└─ riwayat sesi</p>" + ss.map(function (s) {
       var st = s.status === "open" ? "[buka]" : "[tutup]";
       var cp = s.complete ? "" : ' <span class="tag kurang">belum lengkap</span>';
       var cur = s.id === S.sessionId ? ' <span class="tag lebih">aktif</span>' : "";
-      return '<div class="tx"><div class="tx-mid"><span>' + esc(st) + " " + esc(s.id) + "</span>" +
+      var hint = s.status === "open" ? "" : ' <span class="dim">dobel-tap: buka lagi</span>';
+      return '<div class="tx" data-sid="' + esc(s.id) + '"><div class="tx-mid"><span>' + esc(st) + " " + esc(s.id) + "</span>" +
         "<span class=\"dim\">" + esc(s.started_at || "") + " · " + esc(String(s.count || 0)) + " tx</span></div>" +
-        "<div class=\"tx-bot\"><span class=\"dim\">" + esc(s.base_url || "") + "</span><span>" + cp + cur + "</span></div></div>";
+        "<div class=\"tx-bot\"><span class=\"dim\">" + esc(s.base_url || "") + "</span><span>" + cp + cur + hint + "</span></div></div>";
     }).join("");
   }
 
@@ -160,6 +164,42 @@ var Live = (function () {
     await renderAll();
   }
 
+  // dobel-tap item riwayat closed = lanjutkan sesi itu. Tap tunggal: no-op.
+  function onHistoryClick(e) {
+    var el = e.target && e.target.closest ? e.target.closest("[data-sid]") : null;
+    if (!el) return;
+    var id = el.getAttribute("data-sid");
+    if (!id || id === S.sessionId) { lastTap.id = ""; return; } // aktif: no-op
+    var now = Date.now();
+    if (lastTap.id === id && now - lastTap.t < 350) {
+      lastTap.id = "";
+      reopenSession(id);
+    } else {
+      lastTap.id = id; lastTap.t = now;
+    }
+  }
+
+  async function reopenSession(id) {
+    var s = await Store.getSession(id);
+    if (!s || s.status === "open") return;
+    var my = ++S.seq;
+    stopTimer();
+    if (S.sessionId && S.sessionId !== id) await closeCurrent(); // sesi lain ditutup dulu
+    await Store.patchSession(id, { status: "open", closed_at: null });
+    S.sessionId = id;
+    S.base = LanConfig.set(s.base_url || S.base);
+    S.everBroken = !s.complete;
+    status("[BUKA·kuras...]", "");
+    banner(S.everBroken, S.everBroken ? "└─ sesi belum lengkap (pernah putus), data baru tetap masuk" : "");
+    await renderAll();
+    await drain(my); // lanjut dari last_seen sesi itu, idempoten via upsertTx
+    if (my !== S.seq) return;
+    S.timer = setInterval(function () { pollOnce(my); }, 2000);
+    var sess = await Store.getSession(S.sessionId);
+    status(sess && sess.complete ? "[BUKA·ok]" : "[BUKA·kurang]", sess && sess.complete ? "ok" : "");
+    await renderAll();
+  }
+
   async function toggle() {
     var s = S.sessionId ? await Store.getSession(S.sessionId) : null;
     if (s && s.status === "open") await closeCurrent();
@@ -206,6 +246,7 @@ var Live = (function () {
     if ($("in-lan") && !S.base) { try { $("in-lan").value = LanConfig.get(); S.base = LanConfig.get(); } catch (e) {} }
     if ($("btn-live-toggle")) $("btn-live-toggle").addEventListener("click", toggle);
     if ($("btn-live-retry")) $("btn-live-retry").addEventListener("click", retryNow);
+    if ($("live-history")) $("live-history").addEventListener("click", onHistoryClick);
     if ($("in-lan")) $("in-lan").addEventListener("change", function (e) { S.base = LanConfig.set(e.target.value); });
     resume();
   });

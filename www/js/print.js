@@ -1,6 +1,6 @@
-/* Print: port tabs/calculate_tab.py — denominasi + pengeluaran + preview 58/80 + history lokal.
-   Total Sistem dari sesi Live aktif (Store.listTx). Kirim ke PC NONAKTIF (M2):
-   CNdesktop PRD §6 belum ada POST /api/print — tombol [kirim] disabled. */
+/* Print: port tabs/calculate_tab.py — denominasi + pengeluaran + preview 58/80 + kirim struk.
+   Total Sistem dari sesi Live aktif (Store.listTx). Kirim via POST /api/print ke CNdesktop
+   (kontrak milik PC — HP kirim JSON, PC bangun struk + cetak USB thermal). */
 var Print = (function () {
   "use strict";
   var DENOMS = [100000, 75000, 50000, 20000, 10000, 5000, 2000, 1000, 500, 200, 100];
@@ -8,11 +8,6 @@ var Print = (function () {
   var ARABIC_LINE = '"شكراً جزيلاً"';
 
   function $(id) { return document.getElementById(id); }
-  function esc(s) {
-    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
-      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
-    });
-  }
   function toInt(v) { var n = parseInt(v, 10); return isNaN(n) ? 0 : n; }
   function rupiah(v) {
     var n = toInt(v);
@@ -385,51 +380,52 @@ var Print = (function () {
   }
   function hidePreview() { $("print-preview").hidden = true; }
 
-  // ——— simpan lokal + riwayat (ganti CALC_HISTORY_FILE :669-688) ———
-  function doSave() {
-    var kasir = $("in-kasir") ? $("in-kasir").value.trim() : "";
-    if (!kasir) { msg("└─ isi kasir dulu sebelum simpan.", "err"); return; }
-    if (fisikTotal() === 0) { msg("└─ total fisik nol, tak ada yang disimpan.", "err"); return; }
-    var fisik = fisikTotal();
-    Store.saveCalc({
-      ts: nowStamp(),
-      kasir: kasir,
-      cabang: $("in-cabang") ? $("in-cabang").value.trim() : "",
-      shift: $("in-shift") ? $("in-shift").value.trim() : "",
-      denoms: Object.assign({}, S.qty),
-      grand: fisik,
-      sysCash: S.hasSession ? S.sysCash : null,
-      diff: S.hasSession ? fisik - S.sysCash : null,
-      expense: S.expense,
-      note: S.note,
-      size: S.size,
-    }).then(function () {
-      msg("└─ tersimpan di HP.", "ok");
-      renderHistory();
-    });
-  }
-  async function renderHistory() {
-    var box = $("print-history");
-    if (!box) return;
-    var list = [];
-    try { list = await Store.listCalc(10); } catch (e) {}
-    if (!list.length) { box.innerHTML = '<p class="dim">└─ riwayat: kosong.</p>'; return; }
-    box.innerHTML = '<p class="cmdline">└─ riwayat hitung</p>' + list.map(function (h, i) {
-      var dcls = h.diff == null ? "pas" : (h.diff > 0 ? "lebih" : (h.diff < 0 ? "kurang" : "pas"));
-      var dtag = h.diff == null ? "" : ' <span class="tag ' + dcls + '">' + esc(rupiah(h.diff)) + "</span>";
-      return '<div class="tx"><div class="tx-mid"><span class="idx">#' + (i + 1) + "</span><span>" + esc(h.ts || "--") + "</span>" +
-        '<span class="dim">' + esc(h.kasir || "--") + (h.shift ? " · " + esc(h.shift) : "") + (h.cabang ? " · " + esc(h.cabang) : "") + "</span></div>" +
-        '<div class="tx-bot"><span>' + esc(rupiah(h.grand)) + "</span><span>" + dtag + "</span></div></div>";
-    }).join("");
-  }
-
   function doClear() {
     DENOMS.forEach(function (d) { S.qty[d] = 0; var i = $("q-" + d); if (i) i.value = ""; });
     S.expense = 0; S.note = ""; saveMeta();
     hidePreview(); msg("└─ bersih.", "");
     updateTotals();
   }
-  function disabledSend() { msg("└─ kirim nonaktif (M2): desktop belum ada POST /api/print.", "err"); }
+  // ——— kirim struk ke PC (kontrak prompt.md; PC bangun struk + cetak, tanpa GET status) ———
+  function buildPayload() {
+    var qty = {};
+    DENOMS.forEach(function (d) { if (S.qty[d] > 0) qty[String(d)] = S.qty[d]; });
+    return {
+      kasir: $("in-kasir") ? $("in-kasir").value.trim() : "",
+      branch: $("in-cabang") ? $("in-cabang").value.trim() : "",
+      shift: $("in-shift") ? $("in-shift").value : "",
+      user_id: "", // PC default "-" bila kosong (receipt.py:85)
+      qty: qty,
+      expense_amount: S.expense,
+      expense_note: S.note,
+      size: S.size,
+    };
+  }
+  function setSendBusy(busy) {
+    ["btn-print-send", "btn-print-send2"].forEach(function (id) {
+      var b = $(id);
+      if (b) b.disabled = !!busy;
+    });
+  }
+  async function doSend() {
+    var kasir = $("in-kasir") ? $("in-kasir").value.trim() : "";
+    if (!kasir) { msg("└─ pilih/isi kasir dulu.", "err"); if ($("in-kasir")) $("in-kasir").focus(); return; }
+    if (fisikTotal() === 0) { msg("└─ total fisik nol, isi denominasi dulu.", "err"); return; }
+    var base = LanConfig.get();
+    if (!base) { msg("└─ isi IP PC di [live] dulu.", "err"); return; }
+    var my = ++S.seq; // basi: abaikan hasil bila sesi berganti di tengah kirim
+    setSendBusy(true);
+    msg("└─ mengirim ke PC...", "");
+    var r = await Lan.print(base, buildPayload());
+    setSendBusy(false); // selalu: jangan kunci tombol bila sesi berganti di tengah kirim
+    if (my !== S.seq) return; // basi: hasil diabaikan, tombol sudah aktif lagi
+    if (r.ok && r.data) {
+      var t = (r.data.total != null) ? " · " + rupiah(r.data.total) : "";
+      msg("└─ tercetak di " + (r.data.printer || "printer") + t, "ok");
+    } else {
+      msg("└─ gagal: " + ((r && r.error) || "tanpa respon"), "err");
+    }
+  }
 
   document.addEventListener("DOMContentLoaded", function () {
     if (!$("view-print")) return;
@@ -443,10 +439,9 @@ var Print = (function () {
       if (el) { el.addEventListener("input", saveMeta); el.addEventListener("change", saveMeta); }
     });
     if ($("btn-print-preview")) $("btn-print-preview").addEventListener("click", doPreview);
-    if ($("btn-print-save")) $("btn-print-save").addEventListener("click", doSave);
     if ($("btn-print-clear")) $("btn-print-clear").addEventListener("click", doClear);
-    if ($("btn-print-send")) $("btn-print-send").addEventListener("click", disabledSend);
-    if ($("btn-print-send2")) $("btn-print-send2").addEventListener("click", disabledSend);
+    if ($("btn-print-send")) $("btn-print-send").addEventListener("click", doSend);
+    if ($("btn-print-send2")) $("btn-print-send2").addEventListener("click", doSend);
     if ($("btn-print-back")) $("btn-print-back").addEventListener("click", hidePreview);
     if ($("btn-size-58")) $("btn-size-58").addEventListener("click", function () { S.size = "58"; saveMeta(); $("receipt-pre").textContent = generateReceipt(width()); paintSizeBtns(); });
     if ($("btn-size-80")) $("btn-size-80").addEventListener("click", function () { S.size = "80"; saveMeta(); $("receipt-pre").textContent = generateReceipt(width()); paintSizeBtns(); });
@@ -466,10 +461,9 @@ var Print = (function () {
     if (nav) nav.addEventListener("change", function (e) {
       if (e.target.value !== "print") return;
       fillFromSetoran(false); saveMeta(); renderMeta();
-      refreshSys(); renderHistory();
+      refreshSys();
     });
     refreshSys();
-    renderHistory();
     updateTotals();
   });
 

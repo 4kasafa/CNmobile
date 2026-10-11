@@ -47,7 +47,7 @@ var Lan = (function () {
     return { ok: true, rows: arr.map(normRow) };
   }
 
-  // ponytail: endpoint belum ada di CNdesktop §6 (cetak out-of-scope) — stub future, caller harus disabled.
+  // POST /api/print ke CNdesktop: 200 {ok,printer,total} | 400/500 {error}. Kontrak milik PC, HP hanya teruskan.
   async function print(baseUrl, payload) {
     var ctrl = new AbortController();
     var t = setTimeout(function () { ctrl.abort(); }, TIMEOUT_MS);
@@ -58,10 +58,14 @@ var Lan = (function () {
         body: JSON.stringify(payload || {}),
         signal: ctrl.signal,
       });
-      if (!res.ok) return { ok: false, error: "desktop belum dukung print (HTTP " + res.status + ", M2)" };
+      if (!res.ok) {
+        var body = null;
+        try { body = await res.json(); } catch (e2) {}
+        return { ok: false, error: (body && body.error) || ("PC menolak (HTTP " + res.status + ")") };
+      }
       return { ok: true, data: await res.json() };
     } catch (e) {
-      return { ok: false, error: (e && e.name === "AbortError") ? "timeout" : "desktop belum dukung print (M2)" };
+      return { ok: false, error: (e && e.name === "AbortError") ? "timeout: PC tak terjangkau, satu WiFi?" : String((e && e.message) || e) };
     } finally {
       clearTimeout(t);
     }
