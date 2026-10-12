@@ -144,7 +144,7 @@ input::placeholder { color: #54676f; }
 .tx-mid, .tx-bot { font-size: 10px; }
 .tx .idx { color: var(--fog); font-weight: 400; }
 .tag { padding: 0; white-space: nowrap; font-size: 9px; }
-.tag.kurang { color: var(--coral); }
+.tag.kurang, .tag.hilang { color: var(--coral); }
 .tag.lebih { color: var(--mint); }
 .tag.pas { color: var(--fog); }
 .tag.conf { color: var(--signal); }

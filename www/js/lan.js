@@ -30,6 +30,7 @@ var Lan = (function () {
     return {
       server_id: toInt(r.id),
       no_transaksi: String(r.no_transaksi == null ? "" : r.no_transaksi),
+      no_urut: String(r.no_urut == null ? "" : r.no_urut), // ponytail: string apa adanya, guard gap di live.js
       total: toInt(r.total),
       tunai: toInt(r.tunai),
       nontunai: toInt(r.nontunai),

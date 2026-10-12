@@ -13,7 +13,7 @@ var Store = (function () {
   async function createSession(baseUrl) {
     var sessions = load(K_SESS, []);
     var s = {
-      id: "s_" + Date.now(),
+      id: "s_" + Date.now() + "_" + Math.floor(Math.random() * 1000000), // suffix acak: cegah tabrakan same-ms
       base_url: String(baseUrl || ""),
       started_at: nowIso(),
       closed_at: null,
@@ -53,6 +53,21 @@ var Store = (function () {
     return patchSession(id, { status: "closed", closed_at: nowIso(), complete: complete ? 1 : 0 });
   }
 
+  // hapus sesi closed + bucket tx-nya. Tolak open (lindungi sesi aktif). Tanpa undo.
+  async function deleteSession(id) {
+    var sessions = load(K_SESS, []);
+    var at = -1;
+    for (var i = 0; i < sessions.length; i++) {
+      if (sessions[i].id === id) { at = i; break; }
+    }
+    if (at < 0 || sessions[at].status === "open") return false;
+    sessions.splice(at, 1);
+    save(K_SESS, sessions);
+    var all = load(K_TX, {});
+    if (all[id]) { delete all[id]; save(K_TX, all); }
+    return true;
+  }
+
   async function getLastSeen(id) {
     var s = await getSession(id);
     return s ? toInt(s.last_seen) : 0;
@@ -79,7 +94,8 @@ var Store = (function () {
       r = rows[i] || {};
       var sid = toInt(r.server_id);
       if (sid > maxId) maxId = sid;
-      if (seenId[sid] || (r.no_transaksi && seenNo[r.no_transaksi])) continue; // idempoten by id + no_transaksi
+      if (seenId[sid]) continue; // sudah ada (termasuk edited): drain tak menimpa koreksi lokal
+      if (r.no_transaksi && seenNo[r.no_transaksi]) continue;
       seenId[sid] = true;
       if (r.no_transaksi) seenNo[r.no_transaksi] = true;
       cur.push(r);
@@ -94,6 +110,26 @@ var Store = (function () {
     return { added: added, lastSeen: maxId };
   }
 
+  // koreksi lokal: set tunai/nontunai (+total/kategori otomatis), flag edited=1.
+  // count/last_seen tak berubah; tak dikirim balik ke PC. Tanpa undo.
+  async function patchTx(sessionId, serverId, tunai, nontunai) {
+    var all = load(K_TX, {});
+    var cur = all[sessionId] || [];
+    var t = toInt(tunai), nt = toInt(nontunai);
+    if (t < 0 || nt < 0) return null;
+    for (var i = 0; i < cur.length; i++) {
+      if (toInt(cur[i].server_id) !== toInt(serverId)) continue;
+      cur[i].tunai = t;
+      cur[i].nontunai = nt;
+      cur[i].total = t + nt;
+      cur[i].kategori = (t > 0 && nt > 0) ? "Split" : (t > 0 ? "Tunai" : (nt > 0 ? "Nontunai" : (cur[i].kategori || "")));
+      cur[i].edited = 1;
+      save(K_TX, all);
+      return cur[i];
+    }
+    return null;
+  }
+
   async function listTx(sessionId) {
     var all = load(K_TX, {});
     var cur = all[sessionId] || [];
@@ -104,6 +140,6 @@ var Store = (function () {
     init: init, createSession: createSession, getSession: getSession,
     listSessions: listSessions, patchSession: patchSession, closeSession: closeSession,
     getLastSeen: getLastSeen, setLastSeen: setLastSeen,
-    upsertTx: upsertTx, listTx: listTx,
+    upsertTx: upsertTx, listTx: listTx, patchTx: patchTx, deleteSession: deleteSession,
   };
 })();
