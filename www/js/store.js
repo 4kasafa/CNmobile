@@ -77,7 +77,7 @@ var Store = (function () {
     return patchSession(id, { last_seen: toInt(lastSeen) });
   }
 
-  // rows: [{server_id,no_transaksi,...}] -> {added, lastSeen}
+  // rows: [{server_id,no_transaksi,...}] -> {added, lastSeen, ids}
   async function upsertTx(sessionId, rows) {
     var all = load(K_TX, {});
     var cur = all[sessionId] || [];
@@ -88,7 +88,7 @@ var Store = (function () {
       seenId[r.server_id] = true;
       if (r.no_transaksi) seenNo[r.no_transaksi] = true;
     }
-    var added = 0, maxId = 0;
+    var added = 0, maxId = 0, ids = [];
     for (i = 0; i < cur.length; i++) { maxId = Math.max(maxId, toInt(cur[i].server_id)); }
     for (i = 0; i < (rows || []).length; i++) {
       r = rows[i] || {};
@@ -100,6 +100,7 @@ var Store = (function () {
       if (r.no_transaksi) seenNo[r.no_transaksi] = true;
       cur.push(r);
       added++;
+      ids.push(sid);
     }
     // urut id ASC ala API; cap 500/sesi (ponytail: sesi kasir wajar <500)
     cur.sort(function (a, b) { return toInt(a.server_id) - toInt(b.server_id); });
@@ -107,7 +108,7 @@ var Store = (function () {
     all[sessionId] = cur;
     save(K_TX, all);
     await patchSession(sessionId, { last_seen: maxId > 0 ? maxId : await getLastSeen(sessionId), count: cur.length });
-    return { added: added, lastSeen: maxId };
+    return { added: added, lastSeen: maxId, ids: ids };
   }
 
   // koreksi lokal: set tunai/nontunai (+total/kategori otomatis), flag edited=1.

@@ -4,7 +4,7 @@
   var KEY = "cn_view";
   function $(id) { return document.getElementById(id); }
   function show(v) {
-    ["setoran", "live", "print"].forEach(function (k) {
+    ["setoran", "live", "print", "settings"].forEach(function (k) {
       var el = $("view-" + k);
       if (el) el.hidden = (k !== v);
     });
@@ -26,7 +26,7 @@
     } catch (e3) {}
     var v = "setoran";
     try { v = localStorage.getItem(KEY) || "setoran"; } catch (e) {}
-    if (["setoran", "live", "print"].indexOf(v) < 0) v = "setoran";
+    if (["setoran", "live", "print", "settings"].indexOf(v) < 0) v = "setoran";
     show(v);
     $("nav-select").addEventListener("change", function (e) {
       show(e.target.value);

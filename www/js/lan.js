@@ -1,9 +1,19 @@
-/* LAN ke CNdesktop PRD §6: GET /api/health + GET /api/transactions?since&limit=. Tanpa auth. */
+/* LAN ke CNdesktop: GET health/transactions + POST print/wipe/watcher. Tanpa auth, tanpa simpan PIN. */
 var Lan = (function () {
   "use strict";
   var TIMEOUT_MS = 8000;
   function toInt(v) { var n = parseInt(v, 10); return isNaN(n) ? 0 : n; }
   function base(b) { return String(b || "").trim().replace(/\/+$/, ""); }
+
+  // ponytail: satu mapper error — 400 passthrough error PC, sisanya pesan tetap
+  function mapErr(status, bodyErr, isTimeout) {
+    if (isTimeout) return "PC tak terjangkau, satu WiFi?";
+    if (status === 400) return String(bodyErr || "permintaan ditolak PC");
+    if (status === 403) return "PIN salah";
+    if (status === 409) return "PC sibuk, coba lagi";
+    if (status === 429) return "terkunci 5 menit";
+    return String(bodyErr || ("PC menolak (HTTP " + status + ")"));
+  }
 
   async function get(url) {
     var ctrl = new AbortController();
@@ -48,29 +58,52 @@ var Lan = (function () {
     return { ok: true, rows: arr.map(normRow) };
   }
 
-  // POST /api/print ke CNdesktop: 200 {ok,printer,total} | 400/500 {error}. Kontrak milik PC, HP hanya teruskan.
-  async function print(baseUrl, payload) {
+  // POST JSON generik: timeout 8s, parse body.error PC bila !ok, bedakan timeout vs HTTP.
+  async function postJson(baseUrl, path, obj) {
     var ctrl = new AbortController();
     var t = setTimeout(function () { ctrl.abort(); }, TIMEOUT_MS);
     try {
-      var res = await fetch(base(baseUrl) + "/api/print", {
+      var res = await fetch(base(baseUrl) + path, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload || {}),
+        body: JSON.stringify(obj || {}),
         signal: ctrl.signal,
       });
       if (!res.ok) {
         var body = null;
         try { body = await res.json(); } catch (e2) {}
-        return { ok: false, error: (body && body.error) || ("PC menolak (HTTP " + res.status + ")") };
+        return { ok: false, error: mapErr(res.status, body && body.error, false), status: res.status };
       }
-      return { ok: true, data: await res.json() };
+      return { ok: true, data: await res.json(), status: res.status };
     } catch (e) {
-      return { ok: false, error: (e && e.name === "AbortError") ? "timeout: PC tak terjangkau, satu WiFi?" : String((e && e.message) || e) };
+      if (e && e.name === "AbortError") return { ok: false, error: mapErr(0, null, true), status: 0 };
+      return { ok: false, error: String((e && e.message) || e), status: 0 };
     } finally {
       clearTimeout(t);
     }
   }
 
-  return { health: health, fetchTx: fetchTx, print: print };
+  // POST /api/print ke CNdesktop: 200 {ok,printer,total} | 400/500 {error}. Kontrak milik PC, HP hanya teruskan.
+  async function print(baseUrl, payload) {
+    var r = await postJson(baseUrl, "/api/print", payload);
+    if (!r.ok) return { ok: false, error: r.error };
+    return { ok: true, data: r.data };
+  }
+
+  // Remote wipe + watcher (milik PC): PIN hanya argumen, tak disimpan.
+  async function wipe(baseUrl, pin, confirm) {
+    return postJson(baseUrl, "/api/wipe", { pin: pin, confirm: confirm });
+  }
+
+  async function watcherGet(baseUrl) {
+    var r = await get(base(baseUrl) + "/api/watcher");
+    if (!r.ok) return { ok: false, error: r.error === "timeout" ? mapErr(0, null, true) : r.error };
+    return { ok: true, data: r.data };
+  }
+
+  async function watcherSet(baseUrl, pin, enabled) {
+    return postJson(baseUrl, "/api/watcher", { pin: pin, enabled: enabled });
+  }
+
+  return { health: health, fetchTx: fetchTx, print: print, postJson: postJson, wipe: wipe, watcherGet: watcherGet, watcherSet: watcherSet };
 })();

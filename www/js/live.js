@@ -44,7 +44,7 @@ var Live = (function () {
     return out;
   }
 
-  var S = { sessionId: null, base: "", seq: 0, timer: null, polling: false, everBroken: false };
+  var S = { sessionId: null, base: "", seq: 0, timer: null, polling: false, everBroken: false, known: {}, flickT: null };
   var lastTap = { id: "", t: 0 }; // dobel-tap manual: dblclick bawaan tak andal di touchscreen HP
   var lastTxTap = { tid: "", t: 0 }; // dobel-tap baris tx (namespace terpisah dari riwayat)
   var editingTid = null; // tid yang form koreksinya terbuka; satu form saja
@@ -65,7 +65,7 @@ var Live = (function () {
     rows = rows || await Store.listTx(S.sessionId);
     var t = 0, nt = 0, all = 0;
     for (var i = 0; i < rows.length; i++) { t += sInt(rows[i].tunai); nt += sInt(rows[i].nontunai); all += sInt(rows[i].total); }
-    $("live-banner-text").textContent = "└─ tunai: " + rupiah(t) + " · nontunai: " + rupiah(nt) + " · semua: " + rupiah(all);
+    $("live-banner-text").textContent = "└─ tx: " + rows.length + " · tunai: " + rupiah(t) + " · nontunai: " + rupiah(nt) + " · semua: " + rupiah(all);
     b.hidden = false;
   }
 
@@ -77,11 +77,15 @@ var Live = (function () {
     status("[BUKA·ok]", "ok");
   }
 
-  async function renderList() {
+  // freshIds: server_id baru dari drain -> class tx-new (flicker 5x/1dtk, lepas via timeout).
+  // Tanpa argumen = render diam (sinkron S.known, tanpa flicker): dipakai open/reopen/edit.
+  async function renderList(freshIds) {
     await renderTotals();
     if (!S.sessionId) { $("live-list").innerHTML = '<p class="dim">└─ belum ada sesi. isi IP PC lalu [buka].</p>'; return; }
     var rows = await Store.listTx(S.sessionId);
     if (!rows.length) { $("live-list").innerHTML = '<p class="dim">└─ sesi ini belum ada transaksi.</p>'; await renderTotals(rows); return; }
+    var fresh = {};
+    if (Array.isArray(freshIds)) for (var f = 0; f < freshIds.length; f++) fresh[String(freshIds[f])] = true;
     var items = buildItems(rows).reverse(); // terbaru di atas; HILANG sisip sesuai urutan
     $("live-list").innerHTML = items.map(function (it, i) {
       if (it.t === "hilang") return '<div class="tx st-kurang">' +
@@ -97,14 +101,24 @@ var Live = (function () {
           '<span class="dim">NT:</span><input data-ed="nontunai" type="text" inputmode="numeric" pattern="[0-9]*" value="' + esc(r.nontunai) + '">' +
           '<span class="cmds"><button type="button" data-act="save">[simpan]</button> <button type="button" data-act="cancel">[batal]</button></span></div>'
         : "";
-      return '<div class="tx st-' + cls + '" data-tid="' + esc(r.server_id) + '">' +
+      return '<div class="tx st-' + cls + (fresh[String(r.server_id)] ? " tx-new" : "") + '" data-tid="' + esc(r.server_id) + '">' +
         '<div class="tx-top"><span class="idx">#' + (i + 1) + '</span><span>' + esc(r.no_transaksi || ("id-" + r.server_id)) + '</span>' +
-        '<span class="tag ' + cls + '">' + esc(String(r.kategori || "--").toUpperCase()) + '</span>' + ed +
-        ' <span class="dim">dobel-tap: ubah</span></div>' +
+        '<span class="tag ' + cls + '">' + esc(String(r.kategori || "--").toUpperCase()) + '</span>' + ed + '</div>' +
         '<div class="tx-mid"><span>' + esc(rupiah(r.total)) + '</span>' +
         '<span class="dim">T: ' + esc(rupiah(r.tunai)) + ' NT: ' + esc(rupiah(r.nontunai)) + (r.bank ? " " + esc(r.bank) : "") + '</span></div>' +
         '<div class="tx-bot"><span class="dim">' + esc(r.created_at || "") + '</span></div>' + form + '</div>';
     }).join("");
+    for (var u = 0; u < rows.length; u++) S.known[String(rows[u].server_id)] = true;
+    if (S.flickT) { clearTimeout(S.flickT); S.flickT = null; }
+    if (Object.keys(fresh).length) {
+      S.flickT = setTimeout(function () {
+        S.flickT = null;
+        var box = $("live-list");
+        if (!box) return;
+        var els = box.querySelectorAll(".tx-new");
+        for (var q = 0; q < els.length; q++) els[q].classList.remove("tx-new");
+      }, 1000);
+    }
     await renderTotals(rows);
   }
 
@@ -119,13 +133,12 @@ var Live = (function () {
       var st = s.status === "open" ? "[buka]" : "[tutup]";
       var cp = s.complete ? "" : ' <span class="tag kurang">belum lengkap</span>';
       var cur = s.id === S.sessionId ? ' <span class="tag lebih">aktif</span>' : "";
-      var hint = s.status === "open" ? "" : ' <span class="dim">dobel-tap: buka lagi</span>';
       var del = s.status === "open" ? "" : (String(pendingDelete) === String(s.id)
         ? ' <button type="button" data-del="yakin">[yakin?]</button>'
         : ' <button type="button" data-del="hapus">[hapus]</button>');
       return '<div class="tx" data-sid="' + esc(s.id) + '"><div class="tx-mid"><span>' + esc(st) + " " + esc(s.id) + "</span>" +
         "<span class=\"dim\">" + esc(s.started_at || "") + " · " + esc(String(s.count || 0)) + " tx</span></div>" +
-        "<div class=\"tx-bot\"><span class=\"dim\">" + esc(s.base_url || "") + "</span><span>" + cp + cur + hint + del + "</span></div></div>";
+        "<div class=\"tx-bot\"><span class=\"dim\">" + esc(s.base_url || "") + "</span><span>" + cp + cur + del + "</span></div></div>";
     }).join("");
   }
 
@@ -148,8 +161,10 @@ var Live = (function () {
   }
 
   // kuras buffer: loop since=last_seen limit=50 sampai <limit. false bila putus.
-  async function drain(my) {
+  // silent=true (kuras awal open/reopen): render diam tanpa flicker. poll/retry: flicker.
+  async function drain(my, silent) {
     var since = await Store.getLastSeen(S.sessionId);
+    var freshIds = [];
     for (;;) {
       if (my !== S.seq) return true; // basi: sesi baru diambil alih
       var r = await Lan.fetchTx(S.base, since, 50);
@@ -160,11 +175,15 @@ var Live = (function () {
         await renderHistory();
         return false;
       }
-      if (r.rows.length) await Store.upsertTx(S.sessionId, r.rows);
+      if (r.rows.length) {
+        var up = await Store.upsertTx(S.sessionId, r.rows);
+        if (up && up.ids) for (var k = 0; k < up.ids.length; k++) if (!S.known[String(up.ids[k])]) freshIds.push(up.ids[k]);
+      }
       if (r.rows.length < 50) { since = await Store.getLastSeen(S.sessionId); break; }
       since = await Store.getLastSeen(S.sessionId);
     }
-    await renderList();
+    if (my !== S.seq) return true;
+    await renderList(silent ? [] : freshIds);
     return true;
   }
 
@@ -196,13 +215,14 @@ var Live = (function () {
     if (!S.everBroken) { /* complete default 1 */ }
     else await Store.patchSession(s.id, { complete: 0 });
     S.sessionId = s.id;
+    S.known = {}; // sesi baru: bucket Store kosong, known di-sync ulang via kuras diam
     if (!h.ok) {
       status("[PUTUS]", "bad");
     } else {
       status("[BUKA·kuras...]", "");
     }
     await renderAll();
-    var ok = await drain(my);
+    var ok = await drain(my, true); // kuras awal: diam, tanpa flicker
     if (my !== S.seq) return;
     S.timer = setInterval(function () { pollOnce(my); }, 2000);
     if (ok) await heal();
@@ -311,7 +331,7 @@ var Live = (function () {
     S.everBroken = !s.complete;
     status("[BUKA·kuras...]", "");
     await renderAll();
-    var ok = await drain(my); // lanjut dari last_seen sesi itu, idempoten via upsertTx
+    var ok = await drain(my, true); // lanjutkan sesi: diam, tanpa flicker massal
     if (my !== S.seq) return;
     S.timer = setInterval(function () { pollOnce(my); }, 2000);
     if (ok) await heal(); // sesi lama ikut sembuh bila drain ok

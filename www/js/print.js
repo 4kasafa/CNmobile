@@ -41,6 +41,7 @@ var Print = (function () {
     try {
       localStorage.setItem(K_META, JSON.stringify({
         kasir: $("in-kasir") ? $("in-kasir").value : "",
+        kasir_id: $("in-kasir-id") ? $("in-kasir-id").value : "",
         cabang: $("in-cabang") ? $("in-cabang").value : "",
         shift: $("in-shift") ? $("in-shift").value : "",
         size: S.size, qty: S.qty, expense: S.expense, note: S.note,
@@ -88,6 +89,7 @@ var Print = (function () {
   }
   function metaComplete() {
     return !!($("in-kasir") && $("in-kasir").value.trim() &&
+      $("in-kasir-id") && $("in-kasir-id").value.trim() &&
       $("in-cabang") && $("in-cabang").value.trim() &&
       $("in-shift") && $("in-shift").value);
   }
@@ -97,13 +99,16 @@ var Print = (function () {
     line.hidden = S.metaOpen;
     form.hidden = !S.metaOpen;
     if (!S.metaOpen) {
+      var kid = $("in-kasir-id") ? $("in-kasir-id").value.trim() : "";
       $("print-meta-info").textContent = "└─ " + $("in-kasir").value.trim() +
-        " · " + $("in-cabang").value.trim() + " · " + String($("in-shift").value).toUpperCase();
+        " · " + $("in-cabang").value.trim() + " · " + String($("in-shift").value).toUpperCase() +
+        (kid ? " · " + kid : "");
     }
   }
   function bootMeta() {
     var m = loadMeta();
     if ($("in-kasir")) $("in-kasir").value = m.kasir || "";
+    if ($("in-kasir-id")) $("in-kasir-id").value = m.kasir_id || "";
     if ($("in-cabang")) $("in-cabang").value = m.cabang || "";
     if ($("in-shift")) $("in-shift").value = m.shift || "";
     fillFromSetoran(false);
@@ -319,6 +324,7 @@ var Print = (function () {
   function generateReceipt(w) {
     var inner = Math.max(w - 4, 10);
     var kasir = $("in-kasir") ? $("in-kasir").value.trim() : "";
+    var kasirId = $("in-kasir-id") ? $("in-kasir-id").value.trim() : "";
     var cabang = $("in-cabang") ? $("in-cabang").value.trim() : "";
     var shift = $("in-shift") ? $("in-shift").value.trim() : "";
     var fisik = fisikTotal();
@@ -330,6 +336,7 @@ var Print = (function () {
     lines.push(kvLine("Cabang", cabang || "-", inner));
     lines.push(kvLine("Shift", shift || "-", inner));
     lines.push(kvLine("Kasir", kasir || "-", inner));
+    lines.push(kvLine("User ID", kasirId || "-", inner));
     lines.push(new Array(inner + 1).join("-"));
     var phys = [];
     DENOMS.forEach(function (d) {
@@ -370,6 +377,7 @@ var Print = (function () {
   function doPreview() {
     var kasir = $("in-kasir") ? $("in-kasir").value.trim() : "";
     if (!kasir) { msg("└─ pilih/isi kasir dulu.", "err"); if ($("in-kasir")) $("in-kasir").focus(); return; }
+    if ($("in-kasir-id") && !$("in-kasir-id").value.trim()) { msg("└─ isi id kasir dulu.", "err"); $("in-kasir-id").focus(); return; }
     if (fisikTotal() === 0) { msg("└─ total fisik nol, isi denominasi dulu.", "err"); return; }
     saveMeta();
     $("receipt-pre").textContent = generateReceipt(width());
@@ -394,10 +402,11 @@ var Print = (function () {
       kasir: $("in-kasir") ? $("in-kasir").value.trim() : "",
       branch: $("in-cabang") ? $("in-cabang").value.trim() : "",
       shift: $("in-shift") ? $("in-shift").value : "",
-      user_id: "", // PC default "-" bila kosong (receipt.py:85)
+      user_id: ($("in-kasir-id") ? $("in-kasir-id").value.trim() : "") || "-",
       qty: qty,
       expense_amount: S.expense,
       expense_note: S.note,
+      nontunai_amount: S.noncash, // dari sesi Live (Nontunai.total + Split.nontunai); 0 bila offline
       size: S.size,
     };
   }
@@ -410,6 +419,7 @@ var Print = (function () {
   async function doSend() {
     var kasir = $("in-kasir") ? $("in-kasir").value.trim() : "";
     if (!kasir) { msg("└─ pilih/isi kasir dulu.", "err"); if ($("in-kasir")) $("in-kasir").focus(); return; }
+    if ($("in-kasir-id") && !$("in-kasir-id").value.trim()) { msg("└─ isi id kasir dulu.", "err"); $("in-kasir-id").focus(); return; }
     if (fisikTotal() === 0) { msg("└─ total fisik nol, isi denominasi dulu.", "err"); return; }
     var base = LanConfig.get();
     if (!base) { msg("└─ isi IP PC di [live] dulu.", "err"); return; }
@@ -420,8 +430,9 @@ var Print = (function () {
     setSendBusy(false); // selalu: jangan kunci tombol bila sesi berganti di tengah kirim
     if (my !== S.seq) return; // basi: hasil diabaikan, tombol sudah aktif lagi
     if (r.ok && r.data) {
-      var t = (r.data.total != null) ? " · " + rupiah(r.data.total) : "";
-      msg("└─ tercetak di " + (r.data.printer || "printer") + t, "ok");
+      var t = (r.data.total != null) ? " · fisik " + rupiah(r.data.total) : "";
+      var nt = (r.data.nontunai > 0) ? " · NT " + rupiah(r.data.nontunai) : "";
+      msg("└─ tercetak di " + (r.data.printer || "printer") + t + nt, "ok");
     } else {
       msg("└─ gagal: " + ((r && r.error) || "tanpa respon"), "err");
     }
@@ -433,7 +444,7 @@ var Print = (function () {
     renderDenoms();
     renderExpenseForm();
     paintSizeBtns();
-    ["in-kasir", "in-cabang", "in-shift"].forEach(function (id) {
+    ["in-kasir", "in-kasir-id", "in-cabang", "in-shift"].forEach(function (id) {
       var el = $(id);
       // ponytail: input+change — ketikan tersimpan walau pindah tab tanpa blur
       if (el) { el.addEventListener("input", saveMeta); el.addEventListener("change", saveMeta); }
@@ -450,7 +461,7 @@ var Print = (function () {
       if ($("in-kasir")) $("in-kasir").focus();
     });
     if ($("btn-print-meta-close")) $("btn-print-meta-close").addEventListener("click", function () {
-      if (!metaComplete()) { msg("└─ lengkapi kasir + cabang + shift dulu.", "err"); return; }
+      if (!metaComplete()) { msg("└─ lengkapi kasir + id + cabang + shift dulu.", "err"); return; }
       S.metaOpen = false; saveMeta(); renderMeta(); msg("", "");
     });
     if ($("btn-print-meta-pull")) $("btn-print-meta-pull").addEventListener("click", function () {

@@ -18,3 +18,13 @@ Kontrak LAN: `../CNdesktop/docs/PRD.md` §6 — `GET /api/health`, `GET /api/tra
 2. [ ] Buat transaksi baru di Ketoko → ≤4 dtk muncul di HP (poll 2 dtk + drain).
 3. [ ] Matikan CNdesktop → banner `belum lengkap` + `[coba lagi]`; hidupkan lagi → retry mengisi yang kurang, tanpa dobel (`since` = `last_seen`).
 4. [ ] Ganti WiFi / IP berubah → ganti isi pc → `[buka]` sesi baru, sesi lama tetap di riwayat.
+
+## M3 (settings: watcher + wipe, dengan PC + CNdesktop asli, WiFi sama)
+
+1. [ ] Dropdown `[settings]` → `└─ pc` tampil dari `[live]`; kosong → "isi dulu di [live]".
+2. [ ] Buka settings → `watcherGet` auto-load → status `[nyala]`/`[mati]`; `[muat ulang]` refresh.
+3. [ ] Watcher off→on→off (PIN benar) → 200 + status ikut; PIN salah → "PIN salah".
+4. [ ] Wipe confirm salah → 400 tampilkan error PC + fokus ke field HAPUS (PIN tetap); PIN salah → "PIN salah".
+5. [ ] Wipe benar (`HAPUS` kapital) → 200 `dihapus N`; data lokal HP tetap utuh.
+6. [ ] 5x PIN salah beruntun (watcher/wipe) → 429 "terkunci 5 menit"; PIN benar me-reset.
+7. [ ] Saat print/watcher-tulis aktif → wipe/watcher-set 409 "PC sibuk, coba lagi" (tekan ulang manual).
