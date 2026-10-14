@@ -76,19 +76,13 @@ var Conflict = (function () {
   }
 
   // kasir_tab.py:446-484 merge incremental; mutasi `cache` in-place, return {n_new, n_conflict}
+  // arsip akumulasi: tanpa purge/skip periode — semua baris tersimpan permanen.
   function mergeGasData(cache, gasData) {
-    var cur = currentPeriode();
-    for (var i = cache.length - 1; i >= 0; i--) {
-      var p0 = periodeOf(cache[i] && cache[i].tanggal);
-      if (p0 !== null && p0 !== cur) cache.splice(i, 1);
-    }
     var idx = {};
     cache.forEach(function (it, j) { idx[txKey(it)] = j; });
     var nNew = 0;
     (gasData || []).forEach(function (g) {
       if (!g || typeof g !== "object") return;
-      var p = periodeOf(g.tanggal);
-      if (p !== null && p !== cur) return;
       var key = txKey(g);
       if (!(key in idx)) {
         cache.push(stripConflict(g));

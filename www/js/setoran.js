@@ -20,40 +20,108 @@
     return p(d.getDate()) + "/" + p(d.getMonth() + 1) + "/" + d.getFullYear() + " " + p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
   }
 
-  var LS_CRED = "cn_cred", LS_CACHE = "cn_setoran_cache", LS_FOLD = "cn_session_collapsed";
+  var LS_CRED = "cn_cred", LS_ARCH = "cn_setoran_archive", LS_FOLD = "cn_session_collapsed";
+  // ponytail: hanya dibaca migrasi sekali-jalan, lalu dihapus (jangan tulis ke sini lagi)
+  var LS_V1 = "cn_setoran_cache", LS_V2 = "cn_setoran_cache_v2";
   var state = {
     token: null, email: "", password: "", cashier: "",
     cache: [], lastSync: null, lastError: null, syncing: false, syncSeq: 0, conflictKey: null,
     collapsed: true, // gabung session-line + banner jadi 1 baris
     showLogin: false, // form terbuka manual walau sudah login (ganti akun)
     autoLogin: false, // kredensial tersimpan: lipat form ala login selama login background
+    known: {}, // txKey yang sudah tampil; diff blink ala live.js
+    flickT: null, // timeout pelepas .tx-new
   };
 
   function loadJSON(k) { try { var v = JSON.parse(localStorage.getItem(k)); return v && typeof v === "object" ? v : null; } catch (e) { return null; } }
   function saveJSON(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
 
-  // kasir_tab.py:292-316 load cache + purge luar periode
+  // arsip akumulasi per email: {email: {cashier, last_sync, data: [...]}} — tanpa purge periode.
+  function loadArch() { var a = loadJSON(LS_ARCH); return a && typeof a === "object" && !Array.isArray(a) ? a : {}; }
+  function saveArch(a) { saveJSON(LS_ARCH, a || {}); }
+  function bucketEmail(a, email) {
+    var b = a[email];
+    if (!b || typeof b !== "object" || Array.isArray(b)) { b = { cashier: "", last_sync: "", data: [] }; a[email] = b; }
+    if (!Array.isArray(b.data)) b.data = [];
+    return b;
+  }
+
+  // kasir_tab.py:292-316 load cache — versi arsip: seluruh bucket dimuat, tampil difilter viewRows().
   function loadCache() {
     state.cache = []; state.lastSync = null;
-    var c = loadJSON(LS_CACHE);
-    var cur = Conflict.currentPeriode();
-    if (c && c.email === state.email && Array.isArray(c.data) && c.periode === cur) {
-      state.cache = c.data.filter(function (it) {
-        var p = Conflict.periodeOf(it && it.tanggal);
-        return p === null || p === cur;
-      });
-      state.lastSync = c.last_sync || null;
-      state.cashier = c.cashier || state.cashier;
+    if (!state.email) return;
+    var a = loadArch();
+    var b = bucketEmail(a, state.email);
+    // adopsi bucket penampung kasir yang cocok (hasil migrasi slot tercampur)
+    if (state.cashier) {
+      var hk = "kasir:" + String(state.cashier).trim().toLowerCase();
+      var hold = a[hk];
+      if (hold && typeof hold === "object" && Array.isArray(hold.data) && hold.data.length) {
+        Conflict.mergeGasData(b.data, hold.data);
+        if (hold.last_sync && !b.last_sync) b.last_sync = hold.last_sync;
+        if (!b.cashier && hold.cashier) b.cashier = hold.cashier;
+        delete a[hk];
+        saveArch(a);
+      }
     }
-    // ponytail: periode berganti -> cache basi, mulai segar (purge implisit).
-    // seed dev sekali: tambah yang belum ada by txKey, langsung simpan biar offline tetap ada.
-    if (typeof SEED_LAKU !== "undefined" && SEED_LAKU && SEED_LAKU.length && state.email) {
-      try { Conflict.mergeGasData(state.cache, SEED_LAKU); } catch (e) {}
-      try { saveCache(); } catch (e2) {}
-    }
+    state.cache = b.data;
+    state.lastSync = b.last_sync || null;
+    state.cashier = b.cashier || state.cashier;
+    // ponytail: periode berganti tidak membuang apa pun; tampil difilter viewRows().
   }
   function saveCache() {
-    saveJSON(LS_CACHE, { email: state.email, cashier: state.cashier, periode: Conflict.currentPeriode(), last_sync: state.lastSync, data: state.cache });
+    if (!state.email) return;
+    var a = loadArch();
+    a[state.email] = { cashier: state.cashier, last_sync: state.lastSync, data: state.cache };
+    saveArch(a);
+  }
+
+  // migrasi sekali-jalan v1/v2 -> arsip; pisah by kasir bila slot tercampur; baru hapus key lama.
+  function migrateArchive() {
+    var a = loadArch(), touched = false;
+    [LS_V1, LS_V2].forEach(function (k) {
+      var c = loadJSON(k);
+      try { localStorage.removeItem(k); } catch (e) {}
+      if (!c || typeof c !== "object" || !Array.isArray(c.data) || !c.data.length) return;
+      var email = c.email || "", cashier = c.cashier || "";
+      var own = [], holds = {};
+      c.data.forEach(function (r) {
+        var rk = String((r && r.kasir) || "").trim().toLowerCase();
+        if (email && cashier && rk && rk !== String(cashier).trim().toLowerCase()) {
+          (holds[rk] = holds[rk] || []).push(r);
+        } else if (email) {
+          own.push(r);
+        } else if (rk) {
+          (holds[rk] = holds[rk] || []).push(r);
+        }
+      });
+      if (email && own.length) {
+        var b = bucketEmail(a, email);
+        var have = {};
+        b.data.forEach(function (r) { have[Conflict.txKey(r)] = 1; });
+        own.forEach(function (r) {
+          var t = Conflict.txKey(r);
+          if (!have[t]) { b.data.push(r); have[t] = 1; }
+        });
+        if (c.last_sync && !b.last_sync) b.last_sync = c.last_sync;
+        if (!b.cashier && cashier) b.cashier = cashier;
+      }
+      for (var hk in holds) {
+        var key = "kasir:" + hk;
+        var hb = a[key];
+        if (!hb || typeof hb !== "object") { hb = { cashier: (holds[hk][0] || {}).kasir || "", last_sync: "", data: [] }; a[key] = hb; }
+        if (!Array.isArray(hb.data)) hb.data = [];
+        var hh = {};
+        hb.data.forEach(function (r) { hh[Conflict.txKey(r)] = 1; });
+        holds[hk].forEach(function (r) {
+          var t = Conflict.txKey(r);
+          if (!hh[t]) { hb.data.push(r); hh[t] = 1; }
+        });
+        if (c.last_sync && !hb.last_sync) hb.last_sync = c.last_sync;
+      }
+      touched = true;
+    });
+    if (touched) saveArch(a);
   }
 
   // kasir_tab.py:377-417 label status
@@ -71,16 +139,27 @@
     setStatus("", state.token ? "[LOGIN]" : "[--]");
   }
 
+  // arsip akumulasi: tampil + ringkas hanya periode berjalan; total arsip di val-arsip.
+  function viewRows() {
+    var cur = Conflict.currentPeriode();
+    return state.cache.filter(function (it) {
+      var p = Conflict.periodeOf(it && it.tanggal);
+      return p === null || p === cur;
+    });
+  }
+
   // kasir_tab.py:336-351 ringkasan dari data tampil
   function renderSummary() {
     var kurang = 0, lebih = 0;
-    state.cache.forEach(function (it) {
+    var rows = viewRows();
+    rows.forEach(function (it) {
       var s = Conflict.toInt((it || {}).jumlahSelisih);
       if (s < 0) kurang += Math.abs(s);
       else if (s > 0) lebih += s;
     });
     $("periode-label").textContent = Conflict.currentPeriode();
-    $("val-tx").textContent = String(state.cache.length);
+    $("val-tx").textContent = String(rows.length);
+    $("val-arsip").textContent = String(state.cache.length);
     $("val-kurang").textContent = rupiah(kurang);
     $("val-lebih").textContent = rupiah(lebih);
   }
@@ -94,13 +173,18 @@
   }
 
   // kasir_tab.py:644-763 daftar, terbaru di atas (:656-661)
-  function renderList() {
+  // freshKeys: txKey baru/berubah dari syncGas -> class tx-new (blink 5x/1dtk, lepas via timeout).
+  // Tanpa argumen = render diam (sinkron state.known, tanpa blink): login/boot/resolve.
+  function renderList(freshKeys) {
     var box = $("tx-list");
-    if (!state.cache.length) {
+    var rows = viewRows();
+    if (!rows.length) {
       box.innerHTML = '<div class="box"><span class="dim">└─ tidak ada transaksi periode ini.</span></div>';
       return;
     }
-    var ordered = state.cache.slice().sort(function (a, b) {
+    var fresh = {};
+    if (Array.isArray(freshKeys)) for (var f = 0; f < freshKeys.length; f++) fresh[freshKeys[f]] = true;
+    var ordered = rows.slice().sort(function (a, b) {
       var da = Conflict.parseDate(a && a.tanggal), db = Conflict.parseDate(b && b.tanggal);
       return (db ? db.getTime() : -1) - (da ? da.getTime() : -1);
     });
@@ -110,7 +194,7 @@
       var conf = it._conflict
         ? ' <span class="tag conf">beda</span> <button type="button" class="diff" data-key="' + esc(key) + '">Lihat beda</button>'
         : "";
-      return '<div class="tx st-' + st.toLowerCase() + '">' +
+      return '<div class="tx st-' + st.toLowerCase() + (fresh[key] ? " tx-new" : "") + '">' +
         '<div class="tx-top"><span class="idx">#' + (i + 1) + '</span><span>' + esc(it.tanggal || "--") + '</span>' +
         '<span class="tag">' + esc(String(it.shift || "--").toUpperCase()) + '</span>' +
         '<span class="dim">' + esc(it.cabang || "--") + '</span></div>' +
@@ -119,6 +203,17 @@
         '<div class="tx-bot"><span><span class="tag ' + st.toLowerCase() + '">' + st + '</span>' + conf + '</span>' +
         '<span>Selisih: ' + esc(rupiah(it.jumlahSelisih)) + '</span></div></div>';
     }).join("");
+    for (var u = 0; u < state.cache.length; u++) state.known[Conflict.txKey(state.cache[u])] = true;
+    if (state.flickT) { clearTimeout(state.flickT); state.flickT = null; }
+    if (Object.keys(fresh).length) {
+      state.flickT = setTimeout(function () {
+        state.flickT = null;
+        var bx = $("tx-list");
+        if (!bx) return;
+        var els = bx.querySelectorAll(".tx-new");
+        for (var q = 0; q < els.length; q++) els[q].classList.remove("tx-new");
+      }, 1000);
+    }
     box.querySelectorAll("button.diff").forEach(function (b) {
       b.addEventListener("click", function () { showSheet(b.getAttribute("data-key")); });
     });
@@ -140,9 +235,9 @@
   }
   function toggleFold() { setCollapsed(!state.collapsed); renderAll(); }
 
-  function renderAll() {
+  function renderAll(freshKeys) {
     renderSummary();
-    renderList();
+    renderList(freshKeys);
     refreshStatus();
     var logged = !!state.token;
     // cache tampil instan walau belum login (mode cache); login menimpa dengan data segar
@@ -156,6 +251,8 @@
     // form hanya terbuka saat belum login; selama auto-login tampil ala sudah login
     $("login-section").hidden = (logged || state.autoLogin) && !state.showLogin;
     $("session-line").hidden = !(logged || state.autoLogin) || state.showLogin;
+    // [tutup] hanya ada saat form dibuka manual (ganti akun); saat logout form tak bisa ditutup
+    $("btn-login-close").hidden = !(logged || state.autoLogin);
     if (logged) {
       $("kasir-info").textContent = state.cashier + " <" + state.email + ">";
       $("session-info").textContent = "└─ login sebagai " + state.email;
@@ -173,7 +270,14 @@
     state.autoLogin = false;
     $("login-section").hidden = false;
     $("session-line").hidden = true;
+    $("btn-login-close").hidden = false;
     if (focus !== false) $("in-email").focus();
+  }
+
+  // batal ganti-akun: lipat form kembali jadi satu baris sesi
+  function closeLogin() {
+    state.showLogin = false;
+    renderAll();
   }
 
   function doLogout() {
@@ -256,13 +360,24 @@
       return;
     }
     hideOffline();
+    // diff blink: signature per key sebelum merge; fresh = key baru ATAU nilai/flag beda berubah.
+    var before = {};
+    state.cache.forEach(function (it) {
+      before[Conflict.txKey(it)] = JSON.stringify([Conflict.toInt(it.totalKomputer), Conflict.toInt(it.uangFisik), Conflict.toInt(it.jumlahSelisih), !!it._conflict]);
+    });
     Conflict.mergeGasData(state.cache, res.data);
+    var fresh = [];
+    state.cache.forEach(function (it) {
+      var k = Conflict.txKey(it);
+      var sig = JSON.stringify([Conflict.toInt(it.totalKomputer), Conflict.toInt(it.uangFisik), Conflict.toInt(it.jumlahSelisih), !!it._conflict]);
+      if (!Object.prototype.hasOwnProperty.call(before, k) || before[k] !== sig) fresh.push(k);
+    });
     state.lastSync = nowStamp();
     if (res.user) {
       state.cashier = typeof res.user === "object" ? (res.user.name || state.cashier) : String(res.user);
     }
     saveCache();
-    renderAll();
+    renderAll(fresh);
   }
 
   async function doLogin() {
@@ -323,6 +438,7 @@
 
   document.addEventListener("DOMContentLoaded", function () {
     try { state.collapsed = localStorage.getItem(LS_FOLD) !== "0"; } catch (e) {}
+    migrateArchive(); // sekali-jalan: pindah v1/v2 -> arsip, baru hapus key lama
     var line = $("session-line");
     if (line) {
       line.title = "dobel-ketuk: buka/tutup";
@@ -342,6 +458,11 @@
       if (cred.password) $("in-pass").value = cred.password;
     }
     $("btn-login").addEventListener("click", doLogin);
+    $("btn-login-close").addEventListener("click", closeLogin);
+    var pk = $("btn-pass-peek"), pi = $("in-pass"); // ala settings.js peek()
+    if (pk && pi) pk.addEventListener("click", function () {
+      pi.type = pi.type === "password" ? "text" : "password";
+    });
     $("btn-logout").addEventListener("click", doLogout);
     $("btn-show-login").addEventListener("click", function () { openLogin(); });
     $("btn-refresh").addEventListener("click", triggerFetch);

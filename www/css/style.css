@@ -187,6 +187,8 @@ input::placeholder { color: #54676f; }
 }
 #live-list { margin-top: 4px; }
 #live-history { margin-top: 10px; border-top: 1px dashed var(--edge); padding-top: 4px; }
+#live-history .tx { touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+#live-history .tx.holding { opacity: .6; }
 /* ——— print: baris prompt, reuse .tx/.field/.sumline/.msg ——— */
 #view-print .cmdline { margin: 8px 0 2px; }
 #print-expense { padding: 2px 0; margin: 0 0 8px; border-bottom: 1px dashed var(--edge); }

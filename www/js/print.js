@@ -49,11 +49,22 @@ var Print = (function () {
       }));
     } catch (e) {}
   }
-  // entri Setoran terbaru (urutan sama dgn setoran.js renderList: parseDate desc)
+  // entri Setoran terbaru periode berjalan dari bucket arsip email aktif
+  // (urutan sama dgn setoran.js renderList: parseDate desc)
   function latestSetoran() {
     try {
-      var c = JSON.parse(localStorage.getItem("cn_setoran_cache"));
-      var arr = (c && Array.isArray(c.data) ? c.data : []).slice();
+      var email = "";
+      try { var c0 = JSON.parse(localStorage.getItem("cn_cred")); email = (c0 && c0.email) || ""; } catch (e0) {}
+      var arch = JSON.parse(localStorage.getItem("cn_setoran_archive")) || {};
+      var b = (email && arch[email]) || null;
+      var arr = (b && Array.isArray(b.data) ? b.data : []).slice();
+      if (typeof Conflict !== "undefined" && Conflict.currentPeriode) {
+        var cur = Conflict.currentPeriode();
+        arr = arr.filter(function (it) {
+          var p = Conflict.periodeOf(it && it.tanggal);
+          return p === null || p === cur;
+        });
+      }
       if (typeof Conflict !== "undefined" && Conflict.parseDate) {
         arr.sort(function (a, b) {
           var da = Conflict.parseDate(a && a.tanggal), db = Conflict.parseDate(b && b.tanggal);
@@ -65,7 +76,7 @@ var Print = (function () {
         it = arr[i] || {};
         if (it.kasir || it.cabang || it.shift) return it;
       }
-      if (c && c.cashier) return { kasir: c.cashier };
+      if (b && b.cashier) return { kasir: b.cashier };
     } catch (e) {}
     return null;
   }

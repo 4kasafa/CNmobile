@@ -29,10 +29,12 @@
     <div class="field">
       <label for="in-pass">└─ kata sandi</label>
       <input id="in-pass" type="password" autocomplete="current-password" placeholder="••••••••">
+      <span class="cmds"><button id="btn-pass-peek" type="button">[lihat]</button></span>
     </div>
     <div class="login-actions">
       <label class="row check"><input id="chk-remember" type="checkbox" checked> ingat di HP ini</label>
-      <button id="btn-login" type="button">[masuk]</button>
+      <span class="cmds"><button id="btn-login" type="button">[masuk]</button>
+      <button id="btn-login-close" type="button" hidden>[tutup]</button></span>
     </div>
     <div id="login-msg" class="msg" aria-live="polite"></div>
   </section>
@@ -49,7 +51,7 @@
 
   <section id="summary" hidden aria-label="Ringkasan periode">
     <p class="cmdline">┌──<span class="pu">(setoran@cn)</span><span class="pp">-[ringkas]</span> <span id="periode-label" class="dim">----.--</span></p>
-    <p class="sumline">└─ tx: <span id="val-tx">0</span> · kurang: <span id="val-kurang">Rp 0</span> · lebih: <span id="val-lebih">Rp 0</span></p>
+    <p class="sumline">└─ tx: <span id="val-tx">0</span> · arsip: <span id="val-arsip">0</span> · kurang: <span id="val-kurang">Rp 0</span> · lebih: <span id="val-lebih">Rp 0</span></p>
   </section>
 
   <div id="offline-banner" class="msg err" hidden role="status">
@@ -166,7 +168,6 @@
   </div>
 <script src="js/gas.js" defer></script>
 <script src="js/conflict.js" defer></script>
-<script src="js/seed_laku.js" defer></script>
 <script src="js/setoran.js" defer></script>
 <script src="js/config.js" defer></script>
 <script src="js/store.js" defer></script>

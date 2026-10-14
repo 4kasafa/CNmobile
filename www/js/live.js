@@ -49,6 +49,8 @@ var Live = (function () {
   var lastTxTap = { tid: "", t: 0 }; // dobel-tap baris tx (namespace terpisah dari riwayat)
   var editingTid = null; // tid yang form koreksinya terbuka; satu form saja
   var pendingDelete = null; // sid yang tombolnya [yakin?]; tap/render lain me-reset
+  var revealedSid = null; // sid yang secret-nya (belum lengkap+[hapus]) diungkap via hold
+  var holdT = null, holdSid = null, holdX = 0, holdY = 0; // timer hold 900ms
 
   function status(txt, cls) {
     var el = $("live-status");
@@ -131,14 +133,15 @@ var Live = (function () {
     if (!ss.length) { box.innerHTML = '<p class="dim">└─ riwayat: kosong.</p>'; return; }
     box.innerHTML = "<p class=\"cmdline\">└─ riwayat sesi</p>" + ss.map(function (s) {
       var st = s.status === "open" ? "[buka]" : "[tutup]";
-      var cp = s.complete ? "" : ' <span class="tag kurang">belum lengkap</span>';
+      var shown = String(revealedSid) === String(s.id);
+      var cp = (!s.complete && shown) ? ' <span class="tag kurang">belum lengkap</span>' : "";
       var cur = s.id === S.sessionId ? ' <span class="tag lebih">aktif</span>' : "";
-      var del = s.status === "open" ? "" : (String(pendingDelete) === String(s.id)
+      var del = (s.status === "open" || !shown) ? "" : (String(pendingDelete) === String(s.id)
         ? ' <button type="button" data-del="yakin">[yakin?]</button>'
         : ' <button type="button" data-del="hapus">[hapus]</button>');
       return '<div class="tx" data-sid="' + esc(s.id) + '"><div class="tx-mid"><span>' + esc(st) + " " + esc(s.id) + "</span>" +
         "<span class=\"dim\">" + esc(s.started_at || "") + " · " + esc(String(s.count || 0)) + " tx</span></div>" +
-        "<div class=\"tx-bot\"><span class=\"dim\">" + esc(s.base_url || "") + "</span><span>" + cp + cur + del + "</span></div></div>";
+        "<div class=\"tx-bot\"><span class=\"dim\">" + esc(s.base_url || "") + "</span><span class=\"hist-secret\">" + cp + cur + del + "</span></div></div>";
     }).join("");
   }
 
@@ -202,7 +205,7 @@ var Live = (function () {
   }
 
   async function openSession() {
-    pendingDelete = null;
+    pendingDelete = null; revealedSid = null; clearHold();
     var base = LanConfig.set($("in-lan").value);
     if (!base) { status("[isi IP dulu]", "bad"); $("in-lan").focus(); return; }
     S.base = base;
@@ -236,7 +239,7 @@ var Live = (function () {
   async function closeCurrent() {
     var my = ++S.seq;
     stopTimer();
-    pendingDelete = null;
+    pendingDelete = null; revealedSid = null; clearHold();
     if (S.sessionId) {
       await Store.closeSession(S.sessionId, !S.everBroken);
       S.sessionId = null;
@@ -288,6 +291,45 @@ var Live = (function () {
     await renderAll(); // list + totals banner ikut via renderList
   }
 
+  // hold-to-reveal: tahan ~900ms pada item riwayat = ungkap secret (belum lengkap+[hapus]).
+  // Dobel-tap tetap buka sesi; hold dibatalkan bila jari geser >10px (scroll) atau lepas cepat.
+  function clearHold() {
+    if (holdT) { clearTimeout(holdT); holdT = null; }
+    holdSid = null;
+    var box = $("live-history");
+    if (!box) return;
+    var els = box.querySelectorAll(".holding");
+    for (var i = 0; i < els.length; i++) els[i].classList.remove("holding");
+  }
+  function revealHold() {
+    if (!holdSid) return;
+    revealedSid = holdSid; pendingDelete = null; lastTap.id = "";
+    holdSid = null; holdT = null;
+    try { if (navigator.vibrate) navigator.vibrate(15); } catch (e) {}
+    renderAll();
+  }
+  function onHistoryHoldStart(e) {
+    if (e.button != null && e.button !== 0) return; // klik kanan bukan hold
+    if (!e.target || !e.target.closest) return;
+    if (e.target.closest("[data-del]")) return; // tombol hapus tak perlu hold ulang
+    var el = e.target.closest("[data-sid]");
+    if (!el) return;
+    var id = el.getAttribute("data-sid");
+    if (!id || String(revealedSid) === String(id)) return; // sudah terungkap: tak perlu timer
+    clearHold();
+    holdSid = id;
+    var p = (e.touches && e.touches[0]) || e;
+    holdX = p.clientX || 0; holdY = p.clientY || 0;
+    el.classList.add("holding");
+    holdT = setTimeout(revealHold, 900);
+  }
+  function onHistoryHoldMove(e) {
+    if (!holdT) return;
+    var p = (e.touches && e.touches[0]) || e;
+    var x = p.clientX || 0, y = p.clientY || 0;
+    if (Math.abs(x - holdX) > 10 || Math.abs(y - holdY) > 10) clearHold();
+  }
+
   // dobel-tap item riwayat closed = lanjutkan sesi itu. Tap tunggal: no-op.
   // Klik tombol [hapus]/[yakin?] dikecualikan dari tracker dobel-tap; tap lain me-reset pending.
   function onHistoryClick(e) {
@@ -308,6 +350,7 @@ var Live = (function () {
       return;
     }
     if (id === S.sessionId) { lastTap.id = ""; return; } // aktif: no-op
+    if (revealedSid && String(revealedSid) !== String(id)) { revealedSid = null; pendingDelete = null; lastTap.id = ""; renderAll(); return; } // tap lain: sembunyikan secret
     if (pendingDelete) { pendingDelete = null; renderAll(); return; } // tap lain: batalkan [yakin?]
     var now = Date.now();
     if (lastTap.id === id && now - lastTap.t < 350) {
@@ -322,7 +365,7 @@ var Live = (function () {
     var s = await Store.getSession(id);
     if (!s || s.status === "open") return;
     stopTimer();
-    pendingDelete = null;
+    pendingDelete = null; revealedSid = null; clearHold();
     if (S.sessionId && S.sessionId !== id) await closeCurrent(); // sesi lain ditutup dulu
     var my = ++S.seq; // seq segar pasca-tutup (closeCurrent memajukan seq)
     await Store.patchSession(id, { status: "open", closed_at: null });
@@ -383,7 +426,7 @@ var Live = (function () {
     if ($("in-lan") && !S.base) { try { $("in-lan").value = LanConfig.get(); S.base = LanConfig.get(); } catch (e) {} }
     if ($("btn-live-toggle")) $("btn-live-toggle").addEventListener("click", toggle);
     if ($("btn-live-retry")) $("btn-live-retry").addEventListener("click", retryNow);
-    if ($("live-history")) $("live-history").addEventListener("click", onHistoryClick);
+    if ($("live-history")) { $("live-history").addEventListener("click", onHistoryClick); $("live-history").addEventListener("pointerdown", onHistoryHoldStart); $("live-history").addEventListener("pointerup", clearHold); $("live-history").addEventListener("pointercancel", clearHold); $("live-history").addEventListener("pointerleave", clearHold); $("live-history").addEventListener("pointermove", onHistoryHoldMove); $("live-history").addEventListener("contextmenu", function (e) { if (holdT) e.preventDefault(); }); }
     if ($("live-list")) { $("live-list").addEventListener("click", onListClick); $("live-list").addEventListener("click", onListAction); }
     if ($("in-lan")) $("in-lan").addEventListener("change", function (e) { S.base = LanConfig.set(e.target.value); });
     resume();

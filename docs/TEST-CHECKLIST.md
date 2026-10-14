@@ -28,3 +28,10 @@ Kontrak LAN: `../CNdesktop/docs/PRD.md` §6 — `GET /api/health`, `GET /api/tra
 5. [ ] Wipe benar (`HAPUS` kapital) → 200 `dihapus N`; data lokal HP tetap utuh.
 6. [ ] 5x PIN salah beruntun (watcher/wipe) → 429 "terkunci 5 menit"; PIN benar me-reset.
 7. [ ] Saat print/watcher-tulis aktif → wipe/watcher-set 409 "PC sibuk, coba lagi" (tekan ulang manual).
+
+## M4 (arsip setoran + hold riwayat, Chrome + HP)
+
+1. [ ] Login setoran (akun lama, cache v1 ada) → migrasi sekali-jalan: `cn_setoran_archive` terisi, key lama hilang, data tidak dobel.
+2. [ ] Ringkasan tampil `tx` = periode berjalan vs `arsip` = total; sync baru → baris baru blink 5x.
+3. [ ] Riwayat live: `belum lengkap`+`[hapus]` tersembunyi → tahan 900ms muncul; tap item lain sembunyi lagi.
+4. [ ] Password `[lihat]` + `[tutup]` batal ganti-akun; print prefill kasir/cabang/shift dari arsip periode berjalan.
