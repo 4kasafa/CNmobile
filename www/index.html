@@ -59,6 +59,12 @@
     <button id="btn-retry" type="button">[coba lagi]</button>
   </div>
 
+  <section id="doctor" aria-label="Arsip doctor">
+    <p class="cmdline">┌──<span class="pu">(setoran@cn)</span><span class="pp">-[arsip-doctor]</span> <span id="doctor-line" class="dim">--</span></p>
+    <p class="sumline">└─ <span class="cmds"><button id="btn-doctor-adopsi" type="button">[adopsi-semua]</button><button id="btn-arch-export" type="button">[export-arsip]</button><button id="btn-arch-import" type="button">[impor-arsip]</button></span><input id="file-arch-import" type="file" accept="application/json,.json" hidden></p>
+    <div id="doctor-msg" class="msg" aria-live="polite"></div>
+  </section>
+
   <main id="tx-list" aria-live="polite"></main>
   </section>
 

@@ -79,11 +79,28 @@
   // migrasi sekali-jalan v1/v2 -> arsip; pisah by kasir bila slot tercampur; baru hapus key lama.
   function migrateArchive() {
     var a = loadArch(), touched = false;
+    // normalisasi key email campuran-case -> lowercase (gabung dedup)
+    Object.keys(a).forEach(function (k) {
+      if (k.indexOf("@") < 0) return;
+      var low = k.toLowerCase();
+      if (low === k) return;
+      var src = a[k], dst = bucketEmail(a, low);
+      var have0 = {};
+      dst.data.forEach(function (r) { have0[Conflict.txKey(r)] = 1; });
+      (src && Array.isArray(src.data) ? src.data : []).forEach(function (r) {
+        var t = Conflict.txKey(r);
+        if (!have0[t]) { dst.data.push(r); have0[t] = 1; }
+      });
+      if (src && src.last_sync && !dst.last_sync) dst.last_sync = src.last_sync;
+      if (src && src.cashier && !dst.cashier) dst.cashier = src.cashier;
+      delete a[k];
+      touched = true;
+    });
     [LS_V1, LS_V2].forEach(function (k) {
       var c = loadJSON(k);
-      try { localStorage.removeItem(k); } catch (e) {}
+      // ponytail: gagal validasi -> key lama dibiarkan, jangan hapus sebelum sukses
       if (!c || typeof c !== "object" || !Array.isArray(c.data) || !c.data.length) return;
-      var email = c.email || "", cashier = c.cashier || "";
+      var email = String(c.email || "").trim().toLowerCase(), cashier = c.cashier || "";
       var own = [], holds = {};
       c.data.forEach(function (r) {
         var rk = String((r && r.kasir) || "").trim().toLowerCase();
@@ -120,8 +137,92 @@
         if (c.last_sync && !hb.last_sync) hb.last_sync = c.last_sync;
       }
       touched = true;
+      try { localStorage.removeItem(k); } catch (e) {} // hapus SETELAH migrasi per-key sukses
     });
     if (touched) saveArch(a);
+  }
+
+  // arsip-doctor: diagnosis bucket yatim + adopsi ke akun aktif (dedup by Conflict.txKey)
+  function listBuckets() {
+    var a = loadArch(), out = [];
+    Object.keys(a).forEach(function (k) {
+      var b = a[k];
+      out.push({ key: k, n: b && Array.isArray(b.data) ? b.data.length : 0 });
+    });
+    out.sort(function (x, y) { return x.key < y.key ? -1 : 1; });
+    return out;
+  }
+  function renderDoctor() {
+    var line = $("doctor-line"), btn = $("btn-doctor-adopsi");
+    if (!line) return;
+    var buckets = listBuckets();
+    if (!buckets.length) { line.textContent = "kosong"; if (btn) btn.hidden = true; return; }
+    var active = state.email || "";
+    var act = buckets.filter(function (b) { return b.key === active; })[0];
+    var orphans = buckets.filter(function (b) { return b.key !== active && b.n > 0; });
+    line.textContent = "bucket:" + buckets.length + " aktif:" + (active || "-") +
+      "(" + (act ? act.n : 0) + ") yatim:" + (orphans.length ? orphans.map(function (b) { return b.key + "(" + b.n + ")"; }).join(" ") : "-");
+    if (btn) btn.hidden = !(state.email && orphans.length);
+  }
+  function adoptAll() {
+    var msg = $("doctor-msg");
+    if (!state.email) { if (msg) msg.textContent = "└─ login dulu sebelum adopsi."; return 0; }
+    var a = loadArch(), b = bucketEmail(a, state.email), n = 0;
+    Object.keys(a).forEach(function (k) {
+      if (k === state.email) return;
+      var ob = a[k];
+      if (!ob || !Array.isArray(ob.data) || !ob.data.length) { delete a[k]; return; }
+      var before = b.data.length;
+      Conflict.mergeGasData(b.data, ob.data);
+      n += b.data.length - before;
+      if (ob.last_sync && !b.last_sync) b.last_sync = ob.last_sync;
+      delete a[k];
+    });
+    saveArch(a);
+    loadCache();
+    renderAll();
+    if (msg) msg.textContent = "└─ adopsi ok: +" + n + " baris.";
+    return n;
+  }
+  function exportArchive() {
+    try {
+      var blob = new Blob([JSON.stringify(loadArch())], { type: "application/json" });
+      var u = URL.createObjectURL(blob), link = document.createElement("a");
+      var d = new Date(), p = function (x) { return String(x).padStart(2, "0"); };
+      link.href = u;
+      link.download = "arsip-setoran-" + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + ".json";
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(function () { URL.revokeObjectURL(u); link.remove(); }, 500);
+    } catch (e) {}
+  }
+  function importArchiveFile(f) {
+    var msg = $("doctor-msg");
+    if (!f) return;
+    var rd = new FileReader();
+    rd.onload = function () {
+      try {
+        var o = JSON.parse(rd.result);
+        if (!o || typeof o !== "object" || Array.isArray(o)) throw 0;
+        var a = loadArch(), n = 0;
+        Object.keys(o).forEach(function (k) {
+          var src = o[k];
+          if (!src || !Array.isArray(src.data) || !src.data.length) return;
+          var key = k.indexOf("@") >= 0 ? k.toLowerCase() : k;
+          var dst = bucketEmail(a, key);
+          var before = dst.data.length;
+          Conflict.mergeGasData(dst.data, src.data);
+          n += dst.data.length - before;
+          if (src.last_sync && !dst.last_sync) dst.last_sync = src.last_sync;
+          if (src.cashier && !dst.cashier) dst.cashier = src.cashier;
+        });
+        saveArch(a);
+        loadCache();
+        renderAll();
+        if (msg) msg.textContent = "└─ impor ok: +" + n + " baris.";
+      } catch (e) { if (msg) msg.textContent = "└─ file arsip tidak valid."; }
+    };
+    rd.readAsText(f);
   }
 
   // kasir_tab.py:377-417 label status
@@ -239,6 +340,7 @@
     renderSummary();
     renderList(freshKeys);
     refreshStatus();
+    renderDoctor();
     var logged = !!state.token;
     // cache tampil instan walau belum login (mode cache); login menimpa dengan data segar
     var showData = logged || state.cache.length > 0;
@@ -381,7 +483,7 @@
   }
 
   async function doLogin() {
-    var email = $("in-email").value.trim();
+    var email = $("in-email").value.trim().toLowerCase();
     var pass = $("in-pass").value;
     var remember = $("chk-remember").checked;
     var msg = $("login-msg");
@@ -469,6 +571,18 @@
     $("btn-retry").addEventListener("click", triggerFetch);
     $("btn-use-lokal").addEventListener("click", function () { resolveSheet(false); });
     $("btn-use-gas").addEventListener("click", function () { resolveSheet(true); });
+    var ba = $("btn-doctor-adopsi");
+    if (ba) ba.addEventListener("click", adoptAll);
+    var be = $("btn-arch-export");
+    if (be) be.addEventListener("click", exportArchive);
+    var bi = $("btn-arch-import"), fi = $("file-arch-import");
+    if (bi && fi) {
+      bi.addEventListener("click", function () { fi.click(); });
+      fi.addEventListener("change", function () {
+        if (fi.files && fi.files[0]) importArchiveFile(fi.files[0]);
+        fi.value = "";
+      });
+    }
     $("btn-sheet-close").addEventListener("click", hideSheet);
     $("sheet-wrap").addEventListener("click", function (e) { if (e.target === $("sheet-wrap")) hideSheet(); });
     document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !$("sheet-wrap").hidden) hideSheet(); });
@@ -479,7 +593,7 @@
     if (cred && cred.email && cred.password) {
       // render ala login dulu (form lipat), login jalan di background
       state.autoLogin = true;
-      state.email = cred.email;
+      state.email = String(cred.email).trim().toLowerCase();
       state.password = cred.password;
       loadCache();
       renderAll();
