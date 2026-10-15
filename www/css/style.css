@@ -24,7 +24,9 @@
 * { box-sizing: border-box; }
 /* ponytail: guard hidden — display di bawah tak boleh menimpa atribut hidden */
 [hidden] { display: none !important; }
-html, body { margin: 0; padding: 0; }
+html, body { margin: 0; padding: 0; max-width: 100%; }
+html { scrollbar-width: none; -ms-overflow-style: none; overscroll-behavior: none; }
+html::-webkit-scrollbar, body::-webkit-scrollbar { display: none; width: 0; }
 body {
   background: var(--abyss);
   color: var(--paper);
@@ -32,6 +34,7 @@ body {
   font-size: 10px;
   line-height: 1.5;
   -webkit-tap-highlight-color: transparent;
+  overflow-y: auto; overflow-x: clip; overscroll-behavior: none;
 }
 /* ponytail: scanline statis satu-satunya tekstur — murah di HP */
 body::after {
@@ -230,7 +233,9 @@ input::placeholder { color: #54676f; }
   background: #fff; color: #000; font-family: "Courier New", ui-monospace, monospace;
   font-size: 11px; line-height: 1.45; white-space: pre-wrap; word-break: break-word;
   margin: 6px 0; padding: 12px 10px; border: 1px solid var(--edge);
+  max-width: 100%; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none;
 }
+#receipt-pre::-webkit-scrollbar { display: none; width: 0; }
 #exp-amt, #exp-note {
   font: inherit; font-size: 10px; color: var(--paper); background: none;
   border: 0; border-bottom: 1px dashed var(--edge); border-radius: 0;
