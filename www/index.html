@@ -59,12 +59,6 @@
     <button id="btn-retry" type="button">[coba lagi]</button>
   </div>
 
-  <section id="doctor" aria-label="Arsip doctor">
-    <p class="cmdline">┌──<span class="pu">(setoran@cn)</span><span class="pp">-[arsip-doctor]</span> <span id="doctor-line" class="dim">--</span></p>
-    <p class="sumline">└─ <span class="cmds"><button id="btn-doctor-adopsi" type="button">[adopsi-semua]</button><button id="btn-arch-export" type="button">[export-arsip]</button><button id="btn-arch-import" type="button">[impor-arsip]</button></span><input id="file-arch-import" type="file" accept="application/json,.json" hidden></p>
-    <div id="doctor-msg" class="msg" aria-live="polite"></div>
-  </section>
-
   <main id="tx-list" aria-live="polite"></main>
   </section>
 
@@ -110,12 +104,12 @@
         <button id="btn-print-meta-pull" type="button">[ambil setoran]</button>
       </div>
     </div>
+    <p id="print-sumline" class="sumline">└─ fisik: <span id="val-fisik">Rp 0</span> · sys: <span id="val-sys">—</span> · selisih: <span id="val-diff">—</span></p>
+    <p id="print-subline" class="dim">└─ nontunai: <span id="val-nontunai">Rp 0</span> · jual: <span id="val-jual">Rp 0</span></p>
+    <div id="denom-list" aria-label="Rincian denominasi"></div>
     <div id="print-expense">
       <p class="cmdline" id="expense-head">└─ pengeluaran <span id="expense-sum" class="dim"></span><span class="cmds"><button id="btn-exp-open" type="button">[+]</button></span></p>
     </div>
-    <div id="denom-list" aria-label="Rincian denominasi"></div>
-    <p id="print-sumline" class="sumline">└─ fisik: <span id="val-fisik">Rp 0</span> · sys: <span id="val-sys">—</span> · selisih: <span id="val-diff">—</span></p>
-    <p id="print-subline" class="dim">└─ nontunai: <span id="val-nontunai">Rp 0</span> · jual: <span id="val-jual">Rp 0</span></p>
     <div id="print-actions">
       <button id="btn-print-preview" type="button">[pratinjau]</button>
       <button id="btn-print-send" type="button">[kirim]</button>

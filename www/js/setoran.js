@@ -142,89 +142,6 @@
     if (touched) saveArch(a);
   }
 
-  // arsip-doctor: diagnosis bucket yatim + adopsi ke akun aktif (dedup by Conflict.txKey)
-  function listBuckets() {
-    var a = loadArch(), out = [];
-    Object.keys(a).forEach(function (k) {
-      var b = a[k];
-      out.push({ key: k, n: b && Array.isArray(b.data) ? b.data.length : 0 });
-    });
-    out.sort(function (x, y) { return x.key < y.key ? -1 : 1; });
-    return out;
-  }
-  function renderDoctor() {
-    var line = $("doctor-line"), btn = $("btn-doctor-adopsi");
-    if (!line) return;
-    var buckets = listBuckets();
-    if (!buckets.length) { line.textContent = "kosong"; if (btn) btn.hidden = true; return; }
-    var active = state.email || "";
-    var act = buckets.filter(function (b) { return b.key === active; })[0];
-    var orphans = buckets.filter(function (b) { return b.key !== active && b.n > 0; });
-    line.textContent = "bucket:" + buckets.length + " aktif:" + (active || "-") +
-      "(" + (act ? act.n : 0) + ") yatim:" + (orphans.length ? orphans.map(function (b) { return b.key + "(" + b.n + ")"; }).join(" ") : "-");
-    if (btn) btn.hidden = !(state.email && orphans.length);
-  }
-  function adoptAll() {
-    var msg = $("doctor-msg");
-    if (!state.email) { if (msg) msg.textContent = "└─ login dulu sebelum adopsi."; return 0; }
-    var a = loadArch(), b = bucketEmail(a, state.email), n = 0;
-    Object.keys(a).forEach(function (k) {
-      if (k === state.email) return;
-      var ob = a[k];
-      if (!ob || !Array.isArray(ob.data) || !ob.data.length) { delete a[k]; return; }
-      var before = b.data.length;
-      Conflict.mergeGasData(b.data, ob.data);
-      n += b.data.length - before;
-      if (ob.last_sync && !b.last_sync) b.last_sync = ob.last_sync;
-      delete a[k];
-    });
-    saveArch(a);
-    loadCache();
-    renderAll();
-    if (msg) msg.textContent = "└─ adopsi ok: +" + n + " baris.";
-    return n;
-  }
-  function exportArchive() {
-    try {
-      var blob = new Blob([JSON.stringify(loadArch())], { type: "application/json" });
-      var u = URL.createObjectURL(blob), link = document.createElement("a");
-      var d = new Date(), p = function (x) { return String(x).padStart(2, "0"); };
-      link.href = u;
-      link.download = "arsip-setoran-" + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + ".json";
-      document.body.appendChild(link);
-      link.click();
-      setTimeout(function () { URL.revokeObjectURL(u); link.remove(); }, 500);
-    } catch (e) {}
-  }
-  function importArchiveFile(f) {
-    var msg = $("doctor-msg");
-    if (!f) return;
-    var rd = new FileReader();
-    rd.onload = function () {
-      try {
-        var o = JSON.parse(rd.result);
-        if (!o || typeof o !== "object" || Array.isArray(o)) throw 0;
-        var a = loadArch(), n = 0;
-        Object.keys(o).forEach(function (k) {
-          var src = o[k];
-          if (!src || !Array.isArray(src.data) || !src.data.length) return;
-          var key = k.indexOf("@") >= 0 ? k.toLowerCase() : k;
-          var dst = bucketEmail(a, key);
-          var before = dst.data.length;
-          Conflict.mergeGasData(dst.data, src.data);
-          n += dst.data.length - before;
-          if (src.last_sync && !dst.last_sync) dst.last_sync = src.last_sync;
-          if (src.cashier && !dst.cashier) dst.cashier = src.cashier;
-        });
-        saveArch(a);
-        loadCache();
-        renderAll();
-        if (msg) msg.textContent = "└─ impor ok: +" + n + " baris.";
-      } catch (e) { if (msg) msg.textContent = "└─ file arsip tidak valid."; }
-    };
-    rd.readAsText(f);
-  }
-
   // kasir_tab.py:377-417 label status
   function setStatus(mode, text) {
     var el = $("sync-status");
@@ -340,7 +257,6 @@
     renderSummary();
     renderList(freshKeys);
     refreshStatus();
-    renderDoctor();
     var logged = !!state.token;
     // cache tampil instan walau belum login (mode cache); login menimpa dengan data segar
     var showData = logged || state.cache.length > 0;
@@ -571,18 +487,6 @@
     $("btn-retry").addEventListener("click", triggerFetch);
     $("btn-use-lokal").addEventListener("click", function () { resolveSheet(false); });
     $("btn-use-gas").addEventListener("click", function () { resolveSheet(true); });
-    var ba = $("btn-doctor-adopsi");
-    if (ba) ba.addEventListener("click", adoptAll);
-    var be = $("btn-arch-export");
-    if (be) be.addEventListener("click", exportArchive);
-    var bi = $("btn-arch-import"), fi = $("file-arch-import");
-    if (bi && fi) {
-      bi.addEventListener("click", function () { fi.click(); });
-      fi.addEventListener("change", function () {
-        if (fi.files && fi.files[0]) importArchiveFile(fi.files[0]);
-        fi.value = "";
-      });
-    }
     $("btn-sheet-close").addEventListener("click", hideSheet);
     $("sheet-wrap").addEventListener("click", function (e) { if (e.target === $("sheet-wrap")) hideSheet(); });
     document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !$("sheet-wrap").hidden) hideSheet(); });
