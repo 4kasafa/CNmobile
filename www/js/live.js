@@ -211,7 +211,7 @@ var Live = (function () {
 
   // ponytail: akses plugin lewat global Capacitor.Plugins — tanpa bundler di repo ini.
   function bgPlugin() {
-    try { return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.BackgroundMode; } catch (e) { return null; }
+    try { return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.BgSync; } catch (e) { return null; }
   }
   function renderBg() {
     var b = $("btn-bg");
@@ -220,25 +220,30 @@ var Live = (function () {
   // bg ON = foreground service + notifikasi permanen agar polling jalan saat minimize/layar mati.
   // Guard: hanya saat sesi open. Gagal/ditolak = status sebaris, tetap mode lama, tanpa crash.
   async function setBg(on) {
-    var BM = bgPlugin();
+    var BP = bgPlugin();
     if (on) {
+      if (S.bg) { renderBg(); return; }
       var sess = S.sessionId ? await Store.getSession(S.sessionId) : null;
       if (!sess || sess.status !== "open") { status("[buka sesi dulu]", "bad"); return; }
-      if (!BM) { status("[bg tak tersedia]", "bad"); return; }
+      if (!BP) { status("[bg tak tersedia]", "bad"); return; }
       try {
-        var np = await BM.checkNotificationsPermission();
-        if (np && np.notifications !== "granted") np = await BM.requestNotificationsPermission();
-        if (np && np.notifications !== "granted") { status("[notif ditolak]", "bad"); return; }
+        await BP.start(); // prompt izin notif di native bila perlu; tolak "denied-notif" bila ditolak
         try {
-          var bo = await BM.checkBatteryOptimizations();
-          if (bo && bo.enabled) await BM.requestDisableBatteryOptimizations();
+          var batt = null;
+          try { batt = localStorage.getItem("cn_batt"); } catch (e0) {}
+          if (batt !== "1") {
+            await BP.openBatterySettings();
+            try { localStorage.setItem("cn_batt", "1"); } catch (e1) {}
+          }
         } catch (e2) {}
-        await BM.enable({ title: "CNmobile", text: "Live sync jalan", channelName: "live_sync", channelDescription: "Sinkron Live kasir", silent: false, hidden: false, resume: true, disableWebViewOptimization: true });
         S.bg = true;
         try { localStorage.setItem("cn_bg", "1"); } catch (e3) {}
-      } catch (e4) { S.bg = false; status("[bg gagal]", "bad"); }
+      } catch (e4) {
+        S.bg = false;
+        status(String((e4 && e4.message) || e4 || "").indexOf("denied-notif") >= 0 ? "[notif ditolak]" : "[bg gagal]", "bad");
+      }
     } else {
-      if (BM) { try { await BM.disable(); } catch (e5) {} }
+      if (BP) { try { await BP.stop(); } catch (e5) {} }
       S.bg = false;
       try { localStorage.setItem("cn_bg", "0"); } catch (e6) {}
     }
