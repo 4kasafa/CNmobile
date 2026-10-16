@@ -35,3 +35,9 @@ Kontrak LAN: `../CNdesktop/docs/PRD.md` §6 — `GET /api/health`, `GET /api/tra
 2. [ ] Ringkasan tampil `tx` = periode berjalan vs `arsip` = total; sync baru → baris baru blink 5x.
 3. [ ] Riwayat live: `belum lengkap`+`[hapus]` tersembunyi → tahan 900ms muncul; tap item lain sembunyi lagi.
 4. [ ] Password `[lihat]` + `[tutup]` batal ganti-akun; print prefill kasir/cabang/shift dari arsip periode berjalan.
+
+## M5 (isian manual + log PC, dengan CNdesktop asli)
+
+1. [ ] Baris `HILANG no N` → `[isi]` → simpan T/NT → jadi `MANUAL`, totals banner + struk print ikut; data PC telat untuk no itu diabaikan.
+2. [ ] Form `[isi]`/edit terbuka → ganti sesi → form tertutup, list sesi baru drain normal (tidak macet totals-saja).
+3. [ ] Settings `[logs]`: PIN salah → "PIN salah"; PIN benar → `[muat]` tampil 200 baris; badge `pc` `[OK]`/`[PUTUS]` ikut status.

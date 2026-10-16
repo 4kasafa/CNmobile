@@ -2,11 +2,15 @@
    @capacitor-community/sqlite bila isNative — nama fungsi + bentuk return TETAP. */
 var Store = (function () {
   "use strict";
-  var K_SESS = "cn_live_sessions", K_TX = "cn_live_tx";
+  var K_SESS = "cn_live_sessions", K_TX = "cn_live_tx", K_FILL = "cn_live_fill";
   function load(k, fb) { try { var v = JSON.parse(localStorage.getItem(k)); return v == null ? fb : v; } catch (e) { return fb; } }
   function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
   function nowIso() { return new Date().toISOString(); }
   function toInt(v) { var n = parseInt(v, 10); return isNaN(n) ? 0 : n; }
+  // kunci isian manual = hari|no_urut ternormalisasi (cermin numUrut/dayOf live.js)
+  function dayOf(r) { return String((r && r.created_at) || "").slice(0, 10) || "??"; }
+  function numUrut(r) { var n = parseInt(String((r && r.no_urut) || ""), 10); return (isNaN(n) || n <= 0) ? 0 : n; }
+  function fillKey(r) { var n = numUrut(r), d = dayOf(r); return (n && d) ? d + "|" + n : ""; }
 
   async function init() { return true; }
 
@@ -81,6 +85,7 @@ var Store = (function () {
   async function upsertTx(sessionId, rows) {
     var all = load(K_TX, {});
     var cur = all[sessionId] || [];
+    var fills = (load(K_FILL, {})[sessionId]) || {};
     var seenId = {}, seenNo = {};
     var i, r;
     for (i = 0; i < cur.length; i++) {
@@ -96,6 +101,8 @@ var Store = (function () {
       if (sid > maxId) maxId = sid;
       if (seenId[sid]) continue; // sudah ada (termasuk edited): drain tak menimpa koreksi lokal
       if (r.no_transaksi && seenNo[r.no_transaksi]) continue;
+      var fk = fillKey(r);
+      if (fk && fills[fk]) continue; // manual menang: data PC telat untuk no_urut terisi diabaikan
       seenId[sid] = true;
       if (r.no_transaksi) seenNo[r.no_transaksi] = true;
       cur.push(r);
@@ -137,10 +144,34 @@ var Store = (function () {
     return cur.slice().sort(function (a, b) { return toInt(b.server_id) - toInt(a.server_id); }); // terbaru di atas
   }
 
+  // isian manual baris HILANG: kunci hari|no_urut; tulis ulang = edit ulang. Tanpa hapus (YAGNI).
+  async function getFills(sessionId) {
+    var all = load(K_FILL, {});
+    return (all && all[sessionId]) || {};
+  }
+
+  async function upsertFill(sessionId, day, n, tunai, nontunai) {
+    var t = toInt(tunai), nt = toInt(nontunai);
+    n = parseInt(n, 10);
+    if (!(n > 0) || !day || t < 0 || nt < 0) return null;
+    var all = load(K_FILL, {});
+    var cur = all[sessionId] || {};
+    var k = day + "|" + n;
+    cur[k] = {
+      day: day, n: n, tunai: t, nontunai: nt, total: t + nt,
+      kategori: (t > 0 && nt > 0) ? "Split" : (t > 0 ? "Tunai" : (nt > 0 ? "Nontunai" : "")),
+      edited: 1, manual: 1, filled_at: nowIso(),
+    };
+    all[sessionId] = cur;
+    save(K_FILL, all);
+    return cur[k];
+  }
+
   return {
     init: init, createSession: createSession, getSession: getSession,
     listSessions: listSessions, patchSession: patchSession, closeSession: closeSession,
     getLastSeen: getLastSeen, setLastSeen: setLastSeen,
     upsertTx: upsertTx, listTx: listTx, patchTx: patchTx, deleteSession: deleteSession,
+    getFills: getFills, upsertFill: upsertFill,
   };
 })();

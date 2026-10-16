@@ -21,9 +21,20 @@ var Live = (function () {
   function dayOf(r) { return String((r && r.created_at) || "").slice(0, 10) || "??"; }
   function padU(n, w) { var s = String(n); while (s.length < w) s = "0" + s; return s; }
 
+  // baris sintetis dari isian manual (tanpa server_id asli; identitas = fill "hari|n").
+  function fillRow(f) {
+    return {
+      server_id: 0, no_transaksi: "", no_urut: String(f.n),
+      total: f.total, tunai: f.tunai, nontunai: f.nontunai, bank: "",
+      kategori: f.kategori, created_at: f.day, day: f.day, n: f.n, edited: 1, manual: 1,
+    };
+  }
+
   // item urut ASC: tx asli diseling baris HILANG untuk no_urut lompat.
   // Per-hari (reset POS tak memicu), duplikat/'' dilewati tanpa gap.
-  function buildItems(rows) {
+  // Gap yang sudah diisi manual (fills hari|no_urut) tampil sebagai tx MANUAL.
+  function buildItems(rows, fills) {
+    fills = fills || {};
     var asc = rows.slice().sort(function (a, b) { return sInt(a.server_id) - sInt(b.server_id); });
     var out = [], seen = {}, prevDay = null, prevN = 0, dayW = {};
     for (var i = 0; i < asc.length; i++) {
@@ -36,7 +47,11 @@ var Live = (function () {
       seen[key] = true;
       if (d === prevDay && n > prevN + 1) {
         var w = Math.max(dayW[d] || 0, String(prevN).length, String(n).length, 4);
-        for (var m = prevN + 1; m < n; m++) out.push({ t: "hilang", day: d, n: m, w: w });
+        for (var m = prevN + 1; m < n; m++) {
+          var fk = d + "|" + m;
+          if (fills[fk]) out.push({ t: "tx", r: fillRow(fills[fk]), fill: fk, w: w });
+          else out.push({ t: "hilang", day: d, n: m, w: w });
+        }
       }
       prevDay = d; prevN = n;
       out.push({ t: "tx", r: r });
@@ -48,6 +63,7 @@ var Live = (function () {
   var lastTap = { id: "", t: 0 }; // dobel-tap manual: dblclick bawaan tak andal di touchscreen HP
   var lastTxTap = { tid: "", t: 0 }; // dobel-tap baris tx (namespace terpisah dari riwayat)
   var editingTid = null; // tid yang form koreksinya terbuka; satu form saja
+  var editingFill = null; // kunci "hari|no_urut" HILANG yang form isiannya terbuka (tahap 2)
   var pendingDelete = null; // sid yang tombolnya [yakin?]; tap/render lain me-reset
   var revealedSid = null; // sid yang secret-nya (belum lengkap+[hapus]) diungkap via hold
   var holdT = null, holdSid = null, holdX = 0, holdY = 0; // timer hold 900ms
@@ -67,7 +83,12 @@ var Live = (function () {
     rows = rows || await Store.listTx(S.sessionId);
     var t = 0, nt = 0, all = 0;
     for (var i = 0; i < rows.length; i++) { t += sInt(rows[i].tunai); nt += sInt(rows[i].nontunai); all += sInt(rows[i].total); }
-    $("live-banner-text").textContent = "└─ tx: " + rows.length + " · tunai: " + rupiah(t) + " · nontunai: " + rupiah(nt) + " · semua: " + rupiah(all);
+    var fills = await Store.getFills(S.sessionId), nf = 0; // isian manual ikut totals/banner
+    for (var k in fills) {
+      if (!fills.hasOwnProperty(k)) continue;
+      nf++; t += sInt(fills[k].tunai); nt += sInt(fills[k].nontunai); all += sInt(fills[k].total);
+    }
+    $("live-banner-text").textContent = "└─ tx: " + (rows.length + nf) + " · tunai: " + rupiah(t) + " · nontunai: " + rupiah(nt) + " · semua: " + rupiah(all);
     b.hidden = false;
   }
 
@@ -88,12 +109,36 @@ var Live = (function () {
     if (!rows.length) { $("live-list").innerHTML = '<p class="dim">└─ sesi ini belum ada transaksi.</p>'; await renderTotals(rows); return; }
     var fresh = {};
     if (Array.isArray(freshIds)) for (var f = 0; f < freshIds.length; f++) fresh[String(freshIds[f])] = true;
-    var items = buildItems(rows).reverse(); // terbaru di atas; HILANG sisip sesuai urutan
+    var items = buildItems(rows, await Store.getFills(S.sessionId)).reverse(); // terbaru di atas; HILANG sisip sesuai urutan
     $("live-list").innerHTML = items.map(function (it, i) {
-      if (it.t === "hilang") return '<div class="tx st-kurang">' +
-        '<div class="tx-top"><span class="idx">~</span><span>HILANG no ' + esc(padU(it.n, it.w)) + '</span>' +
-        '<span class="tag hilang">HILANG</span></div>' +
-        '<div class="tx-bot"><span class="dim">' + esc(it.day) + ' · tak ada di PC</span></div></div>';
+      if (it.t === "hilang") {
+        var hk = it.day + "|" + it.n;
+        var hbody = String(editingFill) === hk
+          ? '<div class="tx-bot"><span class="dim">T:</span><input data-ed="tunai" type="text" inputmode="numeric" pattern="[0-9]*" value="">' +
+            '<span class="dim">NT:</span><input data-ed="nontunai" type="text" inputmode="numeric" pattern="[0-9]*" value="">' +
+            '<span class="cmds"><button type="button" data-act="save">[simpan]</button> <button type="button" data-act="cancel">[batal]</button></span></div>'
+          : '<div class="tx-bot"><span class="dim">' + esc(it.day) + ' · tak ada di PC</span>' +
+            '<span class="cmds"><button type="button" data-isi="' + esc(hk) + '">[isi]</button></span></div>';
+        return '<div class="tx st-kurang" data-hkey="' + esc(hk) + '">' +
+          '<div class="tx-top"><span class="idx">~</span><span>HILANG no ' + esc(padU(it.n, it.w)) + '</span>' +
+          '<span class="tag hilang">HILANG</span></div>' + hbody + '</div>';
+      }
+      if (it.fill) {
+        var fr = it.r;
+        var fkk = String(fr.kategori || "").toLowerCase();
+        var fcls = fkk === "tunai" ? "lebih" : (fkk === "nontunai" ? "pas" : (fkk === "split" ? "kurang" : "pas"));
+        var fform = String(editingFill) === String(it.fill)
+          ? '<div class="tx-bot"><span class="dim">T:</span><input data-ed="tunai" type="text" inputmode="numeric" pattern="[0-9]*" value="' + esc(fr.tunai) + '">' +
+            '<span class="dim">NT:</span><input data-ed="nontunai" type="text" inputmode="numeric" pattern="[0-9]*" value="' + esc(fr.nontunai) + '">' +
+            '<span class="cmds"><button type="button" data-act="save">[simpan]</button> <button type="button" data-act="cancel">[batal]</button></span></div>'
+          : "";
+        return '<div class="tx st-' + fcls + '" data-fill="' + esc(it.fill) + '">' +
+          '<div class="tx-top"><span class="idx">#' + (i + 1) + '</span><span>MANUAL no ' + esc(padU(fr.n, it.w || 4)) + '</span>' +
+          '<span class="tag kurang">MANUAL</span> <span class="tag conf">EDIT</span></div>' +
+          '<div class="tx-mid"><span>' + esc(rupiah(fr.total)) + '</span>' +
+          '<span class="dim">T: ' + esc(rupiah(fr.tunai)) + ' NT: ' + esc(rupiah(fr.nontunai)) + '</span></div>' +
+          '<div class="tx-bot"><span class="dim">' + esc(fr.day || "") + ' · isian HP</span></div>' + fform + '</div>';
+      }
       var r = it.r;
       var k = String(r.kategori || "").toLowerCase();
       var cls = k === "tunai" ? "lebih" : (k === "nontunai" ? "pas" : (k === "split" ? "kurang" : "pas"));
@@ -186,6 +231,8 @@ var Live = (function () {
       since = await Store.getLastSeen(S.sessionId);
     }
     if (my !== S.seq) return true;
+    // ponytail: form edit/isi terbuka -> totals saja, jangan rebuild list (bunuh keyboard+draft)
+    if (editingTid != null || editingFill != null) { await renderTotals(); return true; }
     await renderList(silent ? [] : freshIds);
     return true;
   }
@@ -205,7 +252,7 @@ var Live = (function () {
   }
 
   async function openSession() {
-    pendingDelete = null; revealedSid = null; clearHold();
+    pendingDelete = null; revealedSid = null; clearHold(); editingTid = null; editingFill = null;
     var base = LanConfig.set($("in-lan").value);
     if (!base) { status("[isi IP dulu]", "bad"); $("in-lan").focus(); return; }
     S.base = base;
@@ -239,7 +286,7 @@ var Live = (function () {
   async function closeCurrent() {
     var my = ++S.seq;
     stopTimer();
-    pendingDelete = null; revealedSid = null; clearHold();
+    pendingDelete = null; revealedSid = null; clearHold(); editingTid = null; editingFill = null;
     if (S.sessionId) {
       await Store.closeSession(S.sessionId, !S.everBroken);
       S.sessionId = null;
@@ -258,33 +305,59 @@ var Live = (function () {
     return d === "" ? 0 : parseInt(d, 10);
   }
 
-  // dobel-tap baris tx sesi open = buka/tutup form koreksi lokal. Tap tunggal: no-op.
+  // dobel-tap baris tx/manual sesi open = buka/tutup form koreksi lokal. Tap tunggal: no-op.
   function onListClick(e) {
     if (!S.sessionId) return;
     if (e.target && e.target.closest && (e.target.closest("button") || e.target.closest("input"))) return;
-    var el = e.target && e.target.closest ? e.target.closest("[data-tid]") : null;
+    var el = e.target && e.target.closest ? (e.target.closest("[data-tid]") || e.target.closest("[data-fill]")) : null;
     if (!el) return;
-    var tid = el.getAttribute("data-tid");
-    if (!tid) return;
+    var key = el.getAttribute("data-tid") || el.getAttribute("data-fill");
+    if (!key) return;
+    var isFill = !!el.getAttribute("data-fill");
     var now = Date.now();
-    if (lastTxTap.tid === tid && now - lastTxTap.t < 350) {
+    if (lastTxTap.tid === key && now - lastTxTap.t < 350) {
       lastTxTap.tid = "";
-      editingTid = (String(editingTid) === String(tid)) ? null : tid;
+      if (isFill) { editingFill = (String(editingFill) === key) ? null : key; editingTid = null; }
+      else { editingTid = (String(editingTid) === String(key)) ? null : key; editingFill = null; }
       renderAll();
     } else {
-      lastTxTap.tid = tid; lastTxTap.t = now;
+      lastTxTap.tid = key; lastTxTap.t = now;
     }
+  }
+
+  // tap [isi] pada baris HILANG = buka form isian + fokus input pertama.
+  async function onListIsi(e) {
+    var b = e.target && e.target.closest ? e.target.closest("[data-isi]") : null;
+    if (!b || !S.sessionId) return;
+    editingFill = b.getAttribute("data-isi");
+    editingTid = null;
+    await renderAll();
+    try {
+      var inp = document.querySelector('[data-hkey="' + editingFill + '"] [data-ed="tunai"]');
+      if (inp) inp.focus();
+    } catch (e2) {}
   }
 
   async function onListAction(e) {
     var t = e.target && e.target.closest ? e.target.closest("[data-act]") : null;
     if (!t || !S.sessionId) return;
-    var box = t.closest("[data-tid]");
-    var tid = box && box.getAttribute("data-tid");
-    if (t.getAttribute("data-act") === "cancel" || !tid) { editingTid = null; await renderAll(); return; }
+    var box = t.closest("[data-tid]") || t.closest("[data-fill]") || t.closest("[data-hkey]");
+    if (!box) { editingTid = null; editingFill = null; await renderAll(); return; }
+    if (t.getAttribute("data-act") === "cancel") { editingTid = null; editingFill = null; await renderAll(); return; }
     var iT = box.querySelector('[data-ed="tunai"]'), iN = box.querySelector('[data-ed="nontunai"]');
     var ct = cleanNum(iT && iT.value), cn = cleanNum(iN && iN.value);
     if (ct === null || cn === null) return; // negatif: tolak, form tetap buka
+    var fkey = box.getAttribute("data-fill") || box.getAttribute("data-hkey");
+    if (fkey) { // isian manual HILANG: kunci "hari|n"
+      var parts = String(fkey).split("|"), fn = parseInt(parts.pop(), 10), fday = parts.join("|");
+      var f = await Store.upsertFill(S.sessionId, fday, fn, ct, cn);
+      if (!f) return;
+      editingFill = null; editingTid = null;
+      await renderAll(); // list + totals banner ikut via renderList
+      return;
+    }
+    var tid = box.getAttribute("data-tid");
+    if (!tid) { editingTid = null; editingFill = null; await renderAll(); return; }
     var ok = await Store.patchTx(S.sessionId, tid, ct, cn);
     if (!ok) return;
     editingTid = null;
@@ -365,7 +438,7 @@ var Live = (function () {
     var s = await Store.getSession(id);
     if (!s || s.status === "open") return;
     stopTimer();
-    pendingDelete = null; revealedSid = null; clearHold();
+    pendingDelete = null; revealedSid = null; clearHold(); editingTid = null; editingFill = null;
     if (S.sessionId && S.sessionId !== id) await closeCurrent(); // sesi lain ditutup dulu
     var my = ++S.seq; // seq segar pasca-tutup (closeCurrent memajukan seq)
     await Store.patchSession(id, { status: "open", closed_at: null });
@@ -427,7 +500,7 @@ var Live = (function () {
     if ($("btn-live-toggle")) $("btn-live-toggle").addEventListener("click", toggle);
     if ($("btn-live-retry")) $("btn-live-retry").addEventListener("click", retryNow);
     if ($("live-history")) { $("live-history").addEventListener("click", onHistoryClick); $("live-history").addEventListener("pointerdown", onHistoryHoldStart); $("live-history").addEventListener("pointerup", clearHold); $("live-history").addEventListener("pointercancel", clearHold); $("live-history").addEventListener("pointerleave", clearHold); $("live-history").addEventListener("pointermove", onHistoryHoldMove); $("live-history").addEventListener("contextmenu", function (e) { if (holdT) e.preventDefault(); }); }
-    if ($("live-list")) { $("live-list").addEventListener("click", onListClick); $("live-list").addEventListener("click", onListAction); }
+    if ($("live-list")) { $("live-list").addEventListener("click", onListClick); $("live-list").addEventListener("click", onListAction); $("live-list").addEventListener("click", onListIsi); }
     if ($("in-lan")) $("in-lan").addEventListener("change", function (e) { S.base = LanConfig.set(e.target.value); });
     resume();
   });

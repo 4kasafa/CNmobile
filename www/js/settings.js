@@ -5,21 +5,24 @@ var Settings = (function () {
 
   function base() { try { return LanConfig.get(); } catch (e) { return ""; } }
 
-  function watchMsg(t, cls) {
-    var m = $("watch-msg");
+  function setMsg(t, cls) {
+    var m = $("set-msg");
     if (!m) return;
     m.textContent = t || "";
     m.className = "msg" + (cls ? " " + cls : "");
   }
-  function wipeMsg(t, cls) {
-    var m = $("wipe-msg");
-    if (!m) return;
-    m.textContent = t || "";
-    m.className = "msg" + (cls ? " " + cls : " err");
-  }
+  function watchMsg(t, cls) { setMsg(t, cls); }
+  function wipeMsg(t, cls) { setMsg(t, cls === undefined ? "err" : cls); }
+  function logMsg(t, cls) { setMsg(t, cls); }
   function paintPc() {
-    var el = $("set-pc");
-    if (el) el.textContent = base() || "isi dulu di [live]";
+    var el = $("set-status-info");
+    if (el) el.textContent = "└─ pc: " + (base() || "isi dulu di [live]");
+  }
+  function paintBadge(txt, cls) {
+    var el = $("set-status-badge");
+    if (!el) return;
+    el.textContent = txt;
+    el.className = cls || "dim";
   }
   function paintStatus(enabled) {
     var el = $("watch-status");
@@ -27,19 +30,35 @@ var Settings = (function () {
     el.textContent = enabled === true ? "[nyala]" : enabled === false ? "[mati]" : "[--]";
   }
   function busy(b) {
-    ["btn-watch-on", "btn-watch-off", "btn-watch-reload", "btn-wipe"].forEach(function (id) {
+    ["btn-watch-on", "btn-watch-off", "btn-watch-reload", "btn-wipe", "btn-log-load"].forEach(function (id) {
       var el = $(id);
       if (el) el.disabled = !!b;
     });
   }
   function clearPin(id) { var el = $(id); if (el) el.value = ""; }
 
+  async function checkPc(b) {
+    try {
+      var s = await Lan.statusGet(b);
+      if (s.ok) { paintBadge("[OK]", "ok"); return; }
+      if (s.error === "PC versi lama, update dulu") {
+        var h = await Lan.health(b);
+        paintBadge(h.ok ? "[OK·lama]" : "[PUTUS]", h.ok ? "ok" : "bad");
+      } else {
+        paintBadge("[PUTUS]", "bad");
+      }
+    } catch (e) {
+      paintBadge("[PUTUS]", "bad");
+    }
+  }
+
   async function load() {
     paintPc();
     var b = base();
-    if (!b) { paintStatus(null); watchMsg("isi pc dulu di [live]", "err"); return; }
+    if (!b) { paintStatus(null); paintBadge("[--]", "dim"); watchMsg("isi pc dulu di [live]", "err"); return; }
     busy(true);
     try {
+      checkPc(b); // tanpa await: badge nyusul, watcher tak nunggu
       var r = await Lan.watcherGet(b);
       if (r.ok) { paintStatus(!!(r.data && r.data.enabled)); watchMsg("", ""); }
       else { paintStatus(null); watchMsg(r.error, "err"); }
@@ -101,6 +120,29 @@ var Settings = (function () {
     }
   }
 
+  async function loadLog() {
+    paintPc();
+    var b = base();
+    if (!b) { logMsg("isi pc dulu di [live]", "err"); return; }
+    var pin = String(($("set-log-pin") || {}).value || "");
+    if (!pin) { logMsg("isi pin log dulu", "err"); return; }
+    busy(true);
+    try {
+      var r = await Lan.logGet(b, pin, 200);
+      if (r.ok) {
+        var lines = r.data && r.data.lines;
+        var pre = $("log-pre");
+        if (pre) pre.textContent = Array.isArray(lines) && lines.length ? lines.join("\n") : "(kosong)";
+        logMsg("", "");
+      } else {
+        logMsg(r.error, "err");
+        if (r.status === 403 || r.status === 429) clearPin("set-log-pin");
+      }
+    } finally {
+      busy(false);
+    }
+  }
+
   function peek(btnId, inputId) {
     var btn = $(btnId), inp = $(inputId);
     if (!btn || !inp) return;
@@ -112,11 +154,26 @@ var Settings = (function () {
   document.addEventListener("DOMContentLoaded", function () {
     peek("btn-watch-peek", "set-watch-pin");
     peek("btn-wipe-peek", "set-wipe-pin");
+    peek("btn-log-peek", "set-log-pin");
     var on = $("btn-watch-on"), off = $("btn-watch-off"), rel = $("btn-watch-reload"), w = $("btn-wipe");
     if (on) on.addEventListener("click", function () { setWatcher(true); });
     if (off) off.addEventListener("click", function () { setWatcher(false); });
     if (rel) rel.addEventListener("click", function () { load(); });
     if (w) w.addEventListener("click", function () { wipe(); });
+    var lg = $("btn-log-load");
+    if (lg) lg.addEventListener("click", function () { loadLog(); });
+    var st = $("set-status");
+    if (st) {
+      st.addEventListener("dblclick", function (e) {
+        if (e.target && e.target.closest && e.target.closest("button")) return;
+        st.classList.toggle("collapsed");
+      });
+      // ponytail: fallback HP (dblclick tak andal) — ketuk badge ikut lipat
+      st.addEventListener("click", function (e) {
+        var t = e.target;
+        if (t && (t.id === "set-status-badge" || (t.closest && t.closest("#set-status-badge")))) st.classList.toggle("collapsed");
+      });
+    }
     var sel = $("nav-select");
     if (sel) sel.addEventListener("change", function (e) {
       if (e.target.value === "settings") load();
@@ -126,5 +183,5 @@ var Settings = (function () {
     } catch (e) {}
   });
 
-  return { load: load, setWatcher: setWatcher, wipe: wipe };
+  return { load: load, setWatcher: setWatcher, wipe: wipe, loadLog: loadLog };
 })();

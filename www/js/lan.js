@@ -105,5 +105,47 @@ var Lan = (function () {
     return postJson(baseUrl, "/api/watcher", { pin: pin, enabled: enabled });
   }
 
-  return { health: health, fetchTx: fetchTx, print: print, postJson: postJson, wipe: wipe, watcherGet: watcherGet, watcherSet: watcherSet };
+  // v1.6.0 (milik PC): status/log/port/pin/shutdown. PIN hanya argumen, tak disimpan.
+  async function statusGet(baseUrl) {
+    var r = await get(base(baseUrl) + "/api/status");
+    if (!r.ok) return { ok: false, error: r.error === "timeout" ? mapErr(0, null, true) : r.error, status: 0 };
+    if (!r.data || r.data.version == null) return { ok: false, error: "PC versi lama, update dulu", status: 200 };
+    return { ok: true, data: r.data, status: 200 };
+  }
+
+  async function logGet(baseUrl, pin, tail) {
+    var t = toInt(tail) || 200;
+    if (t < 1) t = 1;
+    if (t > 1000) t = 1000;
+    var ctrl = new AbortController();
+    var timer = setTimeout(function () { ctrl.abort(); }, TIMEOUT_MS);
+    try {
+      var res = await fetch(base(baseUrl) + "/api/log?pin=" + encodeURIComponent(pin || "") + "&tail=" + encodeURIComponent(t), { signal: ctrl.signal });
+      if (!res.ok) {
+        var body = null;
+        try { body = await res.json(); } catch (e2) {}
+        return { ok: false, error: mapErr(res.status, body && body.error, false), status: res.status };
+      }
+      return { ok: true, data: await res.json(), status: res.status };
+    } catch (e) {
+      if (e && e.name === "AbortError") return { ok: false, error: mapErr(0, null, true), status: 0 };
+      return { ok: false, error: String((e && e.message) || e), status: 0 };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  async function portSet(baseUrl, pin, port) {
+    return postJson(baseUrl, "/api/port", { pin: pin, port: port });
+  }
+
+  async function pinSet(baseUrl, pin, newPin) {
+    return postJson(baseUrl, "/api/pin", { pin: pin, new_pin: newPin });
+  }
+
+  async function shutdown(baseUrl, pin) {
+    return postJson(baseUrl, "/api/shutdown", { pin: pin });
+  }
+
+  return { health: health, fetchTx: fetchTx, print: print, postJson: postJson, wipe: wipe, watcherGet: watcherGet, watcherSet: watcherSet, statusGet: statusGet, logGet: logGet, portSet: portSet, pinSet: pinSet, shutdown: shutdown };
 })();

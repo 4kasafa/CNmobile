@@ -183,7 +183,20 @@ var Print = (function () {
           else if (k === "split") { sysCash += toInt(r.tunai); noncash += toInt(r.nontunai); }
           else { sysCash += toInt(r.tunai); noncash += toInt(r.nontunai); }
         });
-        label = open.id + " · " + rows.length + " tx";
+        var nf = 0; // isian manual HILANG ikut struk (cermin banner Live)
+        if (Store.getFills) {
+          var fills = await Store.getFills(open.id);
+          for (var fk in fills) {
+            if (!fills.hasOwnProperty(fk)) continue;
+            nf++;
+            var fr = fills[fk] || {}, fkk = String(fr.kategori || "").toLowerCase();
+            if (fkk === "tunai") sysCash += toInt(fr.total);
+            else if (fkk === "nontunai") noncash += toInt(fr.total);
+            else if (fkk === "split") { sysCash += toInt(fr.tunai); noncash += toInt(fr.nontunai); }
+            else { sysCash += toInt(fr.tunai); noncash += toInt(fr.nontunai); }
+          }
+        }
+        label = open.id + " · " + (rows.length + nf) + " tx";
       }
     } catch (e) {}
     if (my !== S.seq) return; // basi

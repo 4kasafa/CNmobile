@@ -25,7 +25,7 @@
 /* ponytail: guard hidden — display di bawah tak boleh menimpa atribut hidden */
 [hidden] { display: none !important; }
 html, body { margin: 0; padding: 0; max-width: 100%; }
-html { scrollbar-width: none; -ms-overflow-style: none; overscroll-behavior: none; }
+html { scrollbar-width: none; -ms-overflow-style: none; overscroll-behavior: none; overflow-x: hidden; }
 html::-webkit-scrollbar, body::-webkit-scrollbar { display: none; width: 0; }
 body {
   background: var(--abyss);
@@ -194,7 +194,7 @@ input::placeholder { color: #54676f; }
 #live-history .tx.holding { opacity: .6; }
 /* ——— print: baris prompt, reuse .tx/.field/.sumline/.msg ——— */
 #view-print .cmdline { margin: 8px 0 2px; }
-#print-expense { padding: 2px 0; margin: 0 0 8px; border-bottom: 1px dashed var(--edge); }
+#print-expense { padding: 2px 0; margin: 0 0 8px; border-top: 1px dashed var(--edge); border-bottom: 1px dashed var(--edge); }
 /* ponytail: ringkas expense menempel di baris header — tanpa baris ekstra */
 #expense-head .cmds { display: inline-flex; gap: 4px; white-space: nowrap; }
 #expense-head button { min-height: 24px; min-width: 0; padding: 2px 4px; }
@@ -207,22 +207,40 @@ input::placeholder { color: #54676f; }
 .denom .field { margin: 0; }
 .denom input {
   font: inherit; font-size: 10px; color: var(--paper); background: none;
-  border: 0; border-radius: 0; min-height: 32px; padding: 2px 4px;
+  border: 0; border-radius: 0; min-height: 28px; padding: 1px 4px;
 }
 .denom input::placeholder { color: #54676f; }
 #print-sumline { margin: 8px 0 0; }
-#print-subline { margin: 0 0 4px; }
+#print-subline { margin: 0 0 10px; padding-bottom: 6px; border-bottom: 1px dashed var(--edge); }
 #val-fisik, #val-jual { color: var(--paper); }
 #val-sys { color: var(--signal); }
 #val-diff.neg { color: var(--coral); }
 #val-diff.pos { color: var(--mint); }
 #print-actions, #print-preview-actions { display: flex; gap: 12px; flex-wrap: wrap; }
 #print-actions button, #print-preview-actions button { min-height: 44px; padding: 10px 4px; }
-#set-actions { display: flex; gap: 12px; flex-wrap: wrap; }
-#set-actions button { min-height: 44px; padding: 4px 4px; }
 #view-settings .cmds { display: inline-flex; gap: 4px; }
 #view-settings .cmds button { min-height: 24px; min-width: 0; padding: 2px 4px; }
 #view-settings .field .cmds button { min-height: 24px; min-width: 0; padding: 2px 4px; }
+/* ponytail: baris status settings — cermin #session-line, tanpa header ┌── */
+#set-status {
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  padding: 8px 0; margin: 0; font-size: 10px;
+  border-bottom: 1px dashed var(--edge);
+}
+#set-status-info { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#set-status-badge { white-space: nowrap; font-weight: 700; }
+#set-status-badge.ok { color: var(--mint); }
+#set-status-badge.bad { color: var(--coral); }
+#set-status.collapsed #set-status-badge { display: none; }
+/* ponytail: box log scroll internal — halaman tak terdorong */
+#log-pre {
+  font: inherit; font-size: 9px; color: var(--fog); background: none;
+  border: 1px solid var(--edge); border-radius: 0;
+  max-height: 40vh; overflow-y: auto; white-space: pre-wrap; word-break: break-word;
+  margin: 6px 0; padding: 8px;
+  scrollbar-width: none; -ms-overflow-style: none; overscroll-behavior: contain;
+}
+#log-pre::-webkit-scrollbar { display: none; width: 0; }
 /* ponytail: satu-satunya aksen bahaya — teks/border merah, reuse .msg.err untuk pesan */
 .btn-danger { color: var(--coral); border: 0; padding: 4px 8px; }
 #view-print .cmds { display: inline-flex; gap: 4px; }

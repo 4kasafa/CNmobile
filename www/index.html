@@ -128,7 +128,11 @@
 
   <section id="view-settings" hidden aria-label="Settings">
     <p class="cmdline">┌──<span class="pu">(settings@cn)</span><span class="pp">-[ip]</span></p>
-    <p class="sumline">└─ pc: <span id="set-pc" class="dim">--</span></p>
+    <div id="set-status" title="dobel-ketuk: buka/tutup">
+      <span id="set-status-info">└─ pc: --</span>
+      <span id="set-status-badge" class="dim">[--]</span>
+    </div>
+    <div id="set-msg" class="msg" aria-live="polite"></div>
     <p class="cmdline">┌──<span class="pu">(settings@cn)</span><span class="pp">-[watcher]</span></p>
     <p class="sumline">└─ status: <span id="watch-status" class="dim">[--]</span><span class="cmds"><button id="btn-watch-on" type="button">[nyala]</button><button id="btn-watch-off" type="button">[mati]</button><button id="btn-watch-reload" type="button">[muat ulang]</button></span></p>
     <div class="field">
@@ -136,7 +140,6 @@
       <input id="set-watch-pin" type="password" inputmode="numeric" autocomplete="off" placeholder="••••••">
       <span class="cmds"><button id="btn-watch-peek" type="button">[lihat]</button></span>
     </div>
-    <div id="watch-msg" class="msg" aria-live="polite"></div>
     <p class="cmdline">┌──<span class="pu">(settings@cn)</span><span class="pp">-[wipe]</span></p>
     <div class="field">
       <label for="set-wipe-pin">└─ pin wipe</label>
@@ -146,11 +149,15 @@
     <div class="field">
       <label for="set-wipe-confirm">└─ ketik HAPUS</label>
       <input id="set-wipe-confirm" type="text" autocomplete="off" placeholder="HAPUS">
+      <span class="cmds"><button id="btn-wipe" type="button" class="btn-danger">[hapus]</button></span>
     </div>
-    <div id="set-actions">
-      <button id="btn-wipe" type="button" class="btn-danger">[hapus permanen]</button>
+    <p class="cmdline">┌──<span class="pu">(settings@cn)</span><span class="pp">-[logs]</span></p>
+    <div class="field">
+      <label for="set-log-pin">└─ pin log</label>
+      <input id="set-log-pin" type="password" inputmode="numeric" autocomplete="off" placeholder="••••••">
+      <span class="cmds"><button id="btn-log-peek" type="button">[lihat]</button><button id="btn-log-load" type="button">[muat]</button></span>
     </div>
-    <div id="wipe-msg" class="msg err" aria-live="polite"></div>
+    <pre id="log-pre" aria-label="Log PC">belum dimuat</pre>
   </section>
 
   <div id="sheet-wrap" hidden>
