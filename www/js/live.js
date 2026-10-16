@@ -59,7 +59,7 @@ var Live = (function () {
     return out;
   }
 
-  var S = { sessionId: null, base: "", seq: 0, timer: null, polling: false, everBroken: false, known: {}, flickT: null };
+  var S = { sessionId: null, base: "", seq: 0, timer: null, polling: false, everBroken: false, known: {}, flickT: null, bg: false };
   var lastTap = { id: "", t: 0 }; // dobel-tap manual: dblclick bawaan tak andal di touchscreen HP
   var lastTxTap = { tid: "", t: 0 }; // dobel-tap baris tx (namespace terpisah dari riwayat)
   var editingTid = null; // tid yang form koreksinya terbuka; satu form saja
@@ -199,6 +199,7 @@ var Live = (function () {
 
   async function renderAll() {
     await renderBar();
+    renderBg();
     await renderList();
     await renderHistory();
   }
@@ -206,6 +207,42 @@ var Live = (function () {
   function stopTimer() {
     if (S.timer) { clearInterval(S.timer); S.timer = null; }
     S.polling = false;
+  }
+
+  // ponytail: akses plugin lewat global Capacitor.Plugins — tanpa bundler di repo ini.
+  function bgPlugin() {
+    try { return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.BackgroundMode; } catch (e) { return null; }
+  }
+  function renderBg() {
+    var b = $("btn-bg");
+    if (b) b.textContent = S.bg ? "[bg:on]" : "[bg:off]";
+  }
+  // bg ON = foreground service + notifikasi permanen agar polling jalan saat minimize/layar mati.
+  // Guard: hanya saat sesi open. Gagal/ditolak = status sebaris, tetap mode lama, tanpa crash.
+  async function setBg(on) {
+    var BM = bgPlugin();
+    if (on) {
+      var sess = S.sessionId ? await Store.getSession(S.sessionId) : null;
+      if (!sess || sess.status !== "open") { status("[buka sesi dulu]", "bad"); return; }
+      if (!BM) { status("[bg tak tersedia]", "bad"); return; }
+      try {
+        var np = await BM.checkNotificationsPermission();
+        if (np && np.notifications !== "granted") np = await BM.requestNotificationsPermission();
+        if (np && np.notifications !== "granted") { status("[notif ditolak]", "bad"); return; }
+        try {
+          var bo = await BM.checkBatteryOptimizations();
+          if (bo && bo.enabled) await BM.requestDisableBatteryOptimizations();
+        } catch (e2) {}
+        await BM.enable({ title: "CNmobile", text: "Live sync jalan", channelName: "live_sync", channelDescription: "Sinkron Live kasir", silent: true, resume: true, disableWebViewOptimization: true });
+        S.bg = true;
+        try { localStorage.setItem("cn_bg", "1"); } catch (e3) {}
+      } catch (e4) { S.bg = false; status("[bg gagal]", "bad"); }
+    } else {
+      if (BM) { try { await BM.disable(); } catch (e5) {} }
+      S.bg = false;
+      try { localStorage.setItem("cn_bg", "0"); } catch (e6) {}
+    }
+    renderBg();
   }
 
   // kuras buffer: loop since=last_seen limit=50 sampai <limit. false bila putus.
@@ -286,6 +323,7 @@ var Live = (function () {
   async function closeCurrent() {
     var my = ++S.seq;
     stopTimer();
+    if (S.bg) await setBg(false); // tutup sesi = service mati + notifikasi hilang
     pendingDelete = null; revealedSid = null; clearHold(); editingTid = null; editingFill = null;
     if (S.sessionId) {
       await Store.closeSession(S.sessionId, !S.everBroken);
@@ -489,6 +527,9 @@ var Live = (function () {
       status(S.everBroken ? "[BUKA·kurang]" : "[BUKA]", S.everBroken ? "" : "ok");
       await renderAll();
       S.timer = setInterval(function () { pollOnce(my); }, 2000);
+      var wantBg = false;
+      try { wantBg = localStorage.getItem("cn_bg") === "1"; } catch (e) {}
+      if (wantBg) await setBg(true); // reload/minimize-balik: nyalakan lagi bila sebelumnya ON
     } else {
       await renderAll();
       status("[--]", "");
@@ -498,6 +539,7 @@ var Live = (function () {
   document.addEventListener("DOMContentLoaded", function () {
     if ($("in-lan") && !S.base) { try { $("in-lan").value = LanConfig.get(); S.base = LanConfig.get(); } catch (e) {} }
     if ($("btn-live-toggle")) $("btn-live-toggle").addEventListener("click", toggle);
+    if ($("btn-bg")) { $("btn-bg").addEventListener("click", function () { setBg(!S.bg); }); renderBg(); }
     if ($("btn-live-retry")) $("btn-live-retry").addEventListener("click", retryNow);
     if ($("live-history")) { $("live-history").addEventListener("click", onHistoryClick); $("live-history").addEventListener("pointerdown", onHistoryHoldStart); $("live-history").addEventListener("pointerup", clearHold); $("live-history").addEventListener("pointercancel", clearHold); $("live-history").addEventListener("pointerleave", clearHold); $("live-history").addEventListener("pointermove", onHistoryHoldMove); $("live-history").addEventListener("contextmenu", function (e) { if (holdT) e.preventDefault(); }); }
     if ($("live-list")) { $("live-list").addEventListener("click", onListClick); $("live-list").addEventListener("click", onListAction); $("live-list").addEventListener("click", onListIsi); }
