@@ -233,7 +233,7 @@ var Live = (function () {
           var bo = await BM.checkBatteryOptimizations();
           if (bo && bo.enabled) await BM.requestDisableBatteryOptimizations();
         } catch (e2) {}
-        await BM.enable({ title: "CNmobile", text: "Live sync jalan", channelName: "live_sync", channelDescription: "Sinkron Live kasir", silent: true, resume: true, disableWebViewOptimization: true });
+        await BM.enable({ title: "CNmobile", text: "Live sync jalan", channelName: "live_sync", channelDescription: "Sinkron Live kasir", silent: false, hidden: false, resume: true, disableWebViewOptimization: true });
         S.bg = true;
         try { localStorage.setItem("cn_bg", "1"); } catch (e3) {}
       } catch (e4) { S.bg = false; status("[bg gagal]", "bad"); }
