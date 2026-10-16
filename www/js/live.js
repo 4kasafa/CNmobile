@@ -60,6 +60,7 @@ var Live = (function () {
   }
 
   var S = { sessionId: null, base: "", seq: 0, timer: null, polling: false, everBroken: false, known: {}, flickT: null, bg: false };
+  var lastSent = ""; // throttle BgSync.update: kirim hanya bila teks berubah
   var lastTap = { id: "", t: 0 }; // dobel-tap manual: dblclick bawaan tak andal di touchscreen HP
   var lastTxTap = { tid: "", t: 0 }; // dobel-tap baris tx (namespace terpisah dari riwayat)
   var editingTid = null; // tid yang form koreksinya terbuka; satu form saja
@@ -81,8 +82,8 @@ var Live = (function () {
     if (!b) return;
     if (!S.sessionId) { b.hidden = true; return; }
     rows = rows || await Store.listTx(S.sessionId);
-    var t = 0, nt = 0, all = 0;
-    for (var i = 0; i < rows.length; i++) { t += sInt(rows[i].tunai); nt += sInt(rows[i].nontunai); all += sInt(rows[i].total); }
+    var t = 0, nt = 0, all = 0, last = null;
+    for (var i = 0; i < rows.length; i++) { t += sInt(rows[i].tunai); nt += sInt(rows[i].nontunai); all += sInt(rows[i].total); if (!last || sInt(rows[i].server_id) > sInt(last.server_id)) last = rows[i]; }
     var fills = await Store.getFills(S.sessionId), nf = 0; // isian manual ikut totals/banner
     for (var k in fills) {
       if (!fills.hasOwnProperty(k)) continue;
@@ -90,6 +91,18 @@ var Live = (function () {
     }
     $("live-banner-text").textContent = "└─ tx: " + (rows.length + nf) + " · tunai: " + rupiah(t) + " · nontunai: " + rupiah(nt) + " · semua: " + rupiah(all);
     b.hidden = false;
+    pushBg((rows.length + nf) + " tx · " + rupiah(all) +
+      (last ? " · terakhir " + rupiah(last.total) + " " + String(last.created_at || "").slice(11, 16) : "") +
+      (S.everBroken ? " · [PUTUS]" : " · [ok]"));
+  }
+
+  // via BgSync.update (bridge): samakan teks notif dengan banner; gagal = diam, polling tetap jalan.
+  async function pushBg(txt) {
+    if (!S.bg || txt === lastSent) return;
+    lastSent = txt;
+    var BP = bgPlugin();
+    if (!BP) return;
+    try { await BP.update({ text: txt }); } catch (e) { lastSent = ""; }
   }
 
   // sembuh tunggal: drain ok (cukup 1 fetchTx ok) -> everBroken=false + complete=1 + [BUKA·ok].

@@ -58,6 +58,16 @@ public class BgSyncPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void update(PluginCall call) {
+        String text = call.getString("text", "Live sync jalan");
+        Context ctx = getContext();
+        Intent intent = new Intent(ctx, BgSyncService.class);
+        intent.putExtra("text", text);
+        ContextCompat.startForegroundService(ctx, intent); // aman: service sudah foreground, hanya antar teks
+        call.resolve();
+    }
+
+    @PluginMethod
     public void openBatterySettings(PluginCall call) {
         try {
             Context ctx = getContext();
