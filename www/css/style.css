@@ -25,7 +25,7 @@
 /* ponytail: guard hidden — display di bawah tak boleh menimpa atribut hidden */
 [hidden] { display: none !important; }
 html, body { margin: 0; padding: 0; max-width: 100%; }
-html { scrollbar-width: none; -ms-overflow-style: none; overscroll-behavior: none; overflow-x: hidden; }
+html { scrollbar-width: none; -ms-overflow-style: none; overscroll-behavior: none; }
 html::-webkit-scrollbar, body::-webkit-scrollbar { display: none; width: 0; }
 body {
   background: var(--abyss);
@@ -34,7 +34,7 @@ body {
   font-size: 10px;
   line-height: 1.5;
   -webkit-tap-highlight-color: transparent;
-  overflow-y: auto; overflow-x: clip; overscroll-behavior: none;
+  overscroll-behavior: none;
 }
 /* ponytail: scanline statis satu-satunya tekstur — murah di HP */
 body::after {
