@@ -59,7 +59,7 @@ var Live = (function () {
     return out;
   }
 
-  var S = { sessionId: null, base: "", seq: 0, timer: null, polling: false, everBroken: false, known: {}, flickT: null, bg: false, beats: 0, beatsAtHide: 0 };
+  var S = { sessionId: null, base: "", seq: 0, timer: null, polling: false, everBroken: false, known: {}, flickT: null, bg: false, beats: 0, beatsAtHide: 0, hiddenAt: 0 };
   var lastSent = ""; // throttle BgSync.update: kirim hanya bila teks berubah
   var lastTap = { id: "", t: 0 }; // dobel-tap manual: dblclick bawaan tak andal di touchscreen HP
   var lastTxTap = { tid: "", t: 0 }; // dobel-tap baris tx (namespace terpisah dari riwayat)
@@ -563,13 +563,23 @@ var Live = (function () {
     if ($("live-history")) { $("live-history").addEventListener("click", onHistoryClick); $("live-history").addEventListener("pointerdown", onHistoryHoldStart); $("live-history").addEventListener("pointerup", clearHold); $("live-history").addEventListener("pointercancel", clearHold); $("live-history").addEventListener("pointerleave", clearHold); $("live-history").addEventListener("pointermove", onHistoryHoldMove); $("live-history").addEventListener("contextmenu", function (e) { if (holdT) e.preventDefault(); }); }
     if ($("live-list")) { $("live-list").addEventListener("click", onListClick); $("live-list").addEventListener("click", onListAction); $("live-list").addEventListener("click", onListIsi); }
     if ($("in-lan")) $("in-lan").addEventListener("change", function (e) { S.base = LanConfig.set(e.target.value); });
-    // ponytail: diagnostik throttle — hitung tick selama app tak terlihat.
-    // [beat +N] tinggi = timer hidup di background; 0 = WebView di-throttle/freeze.
-    document.addEventListener("visibilitychange", function () {
-      if (document.hidden) { S.beatsAtHide = S.beats; return; }
+    // ponytail: diagnostik throttle (bukan fitur). N besar = timer hidup di background;
+    // N~0 tapi detik besar = visibilitychange telat (renderer beku); detik kecil = event tak jalan.
+    // Tulis ke #live-beat, BUKAN status() — heal() menimpa status tiap poll.
+    function beatMark() { S.beatsAtHide = S.beats; S.hiddenAt = Date.now(); }
+    function beatShow() {
+      var el = $("live-beat");
+      if (!el || !S.sessionId) return;
       var d = S.beats - S.beatsAtHide;
-      if (S.sessionId && d >= 0) status("[beat +" + d + "]");
+      var secs = S.hiddenAt ? Math.round((Date.now() - S.hiddenAt) / 1000) : 0;
+      el.textContent = "[beat +" + d + " · " + secs + "d]";
+    }
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden) beatMark();
+      else beatShow();
     });
+    document.addEventListener("freeze", beatMark); // renderer dibekukan: catat titik masuk
+    document.addEventListener("resume", beatShow); // renderer hidup lagi: laporkan
     resume();
   });
 

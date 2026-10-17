@@ -10,6 +10,11 @@ public class MainActivity extends BridgeActivity {
 @Override protected void onCreate(Bundle savedInstanceState) {
 registerPlugin(BgSyncPlugin.class);
 super.onCreate(savedInstanceState);
+// Renderer WebView dibekukan Android saat app tak terlihat -> timer JS mati -> polling Live beku.
+// API resmi anti-freeze: IMPORTANT + canBePaused=false.
+if (getBridge() != null && getBridge().getWebView() != null) {
+getBridge().getWebView().setRendererPriorityPolicy(android.webkit.WebView.RENDERER_PRIORITY_IMPORTANT, false);
+}
 }
 // ponytail: Capacitor abaikan activity_main.xml — matikan glow/scrollbar di WebView bridge
 @Override public void onStart() {
