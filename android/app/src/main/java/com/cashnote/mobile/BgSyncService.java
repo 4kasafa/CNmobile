@@ -26,6 +26,11 @@ public class BgSyncService extends Service {
     private WifiManager.WifiLock wifiLock;
     private static boolean running = false; // cegah update membangunkan service yang sudah mati
 
+    // ponytail: MainActivity butuh tahu bg aktif/tidak -> WebView tak boleh di-throttle.
+    public static boolean isRunning() {
+        return running;
+    }
+
     @Override
     public IBinder onBind(Intent intent) { return null; }
 
