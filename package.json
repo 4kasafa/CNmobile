@@ -1,6 +1,6 @@
 {
   "name": "cnmobile",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "private": true,
   "description": "cn:setoran — pantau selisih kasir dari HP (Capacitor wrapper, web murni di www/)",
   "scripts": {
