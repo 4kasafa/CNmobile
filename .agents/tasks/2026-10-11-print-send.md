@@ -1,0 +1,23 @@
+# Aktifkan kirim struk ke PC (POST /api/print)
+> Source: Approved plan from www/prompt.md with 4 work items plus verification to enable HP send to PC via POST {base}/api/print JSON contract.
+> Source: Sibling ../CNdesktop is READ-ONLY contract owner and current HP state has Lan.print posting correctly but with stale errors while send buttons stay disabled pending M2.
+> Source: Locked decisions kept as is with user_id empty string, local validation mirroring preview, busy guard both buttons, relabel second button to kirim, error surfacing only in lan.js.
+## Tasks
+- [x] Phase 1: Harden Lan.print honest errors so PC error body reaches terminal with done equals !ok shows server text and timeout is clear
+  - [x] Parse PC error body in Lan.print on !ok to surface JSON error text with HTTP status fallback, acceptance PC 400/500 error string appears in terminal msg, file paths www/js/lan.js lines 51-68, verification command `node --check www/js/lan.js`
+  - [x] Rewrite stale M2 network error strings in Lan.print to clear timeout plus unreachable text, acceptance PC off shows clear error and no stale M2 wording remains, file paths www/js/lan.js lines 51-68, verification command `node --check www/js/lan.js`
+  - evidence (2026-10-11): stub-fetch 4/4 (400 body, 500 fallback, 200 data, timeout msg).
+- [x] Phase 2: Implement print.js send flow replacing disabledSend with done equals filled denom plus kasir sends and negatives block zero fetch
+  - [x] Implement buildPayload reading in-kasir in-cabang in-shift plus S.qty filtered qty greater than 0 only plus S.expense S.note S.size with explicit user_id empty string, acceptance payload shape matches PC contract kasir branch shift user_id qty expense_amount expense_note size 58 or 80, file paths www/js/print.js, verification command `node --check www/js/print.js`
+  - [x] Replace disabledSend with doSend doing local validation mirroring doPreview plus empty LAN base guard plus busy guard disabling both send buttons during fetch with ok and err terminal msgs, acceptance empty kasir or zero fisik blocks with zero fetch and busy guard reenables after, file paths www/js/print.js lines 389 plus 404-405, verification command `node --check www/js/print.js`
+  - [x] Update print.js header comment lines 1-3 removing M2 pending wording and rebind both send buttons to doSend send-only, acceptance header states send active and both buttons call doSend with PC not storing, file paths www/js/print.js lines 1-3 plus 404-405, verification command `node --check www/js/print.js`
+  - evidence (2026-10-11): stub-DOM 14/14 (payload shape, msg ok, re-enable, 3× zero-fetch negatives, PC-err, busy-guard). Fix: setSendBusy(false) selalu sebelum stale-guard return (anti kunci tombol).
+- [x] Phase 3: Enable index.html send buttons with done equals both buttons clickable without title attrs and labeled kirim
+  - [x] Enable first send button in index.html removing disabled plus title tunggu desktop M2 and label as kirim, acceptance button clickable and no title attr, file paths www/index.html line 111, verification command `python -c "import html.parser; html.parser.HTMLParser().feed(open('www/index.html').read()); print('parse ok')"`
+  - [x] Enable second send button in index.html removing disabled plus title tunggu desktop M2 and relabel simpan and kirim to kirim with same send-only behavior, acceptance button clickable labeled kirim and no title attr, file paths www/index.html line 120, verification command `python -c "import html.parser; html.parser.HTMLParser().feed(open('www/index.html').read()); print('parse ok')"`
+- [ ] Phase 4: Verify automated plus manual with done equals node checks pass plus stub test passes plus Chrome send prints physical receipt
+  - [x] Run automated node syntax checks plus functional stub test of buildPayload shape and validation blocking and busy guard both buttons, acceptance node check passes for lan.js and print.js and stub shows correct payload and zero fetch on invalid, file paths www/js/lan.js plus www/js/print.js plus www/js/config.js, verification command `node --check www/js/lan.js && node --check www/js/print.js`
+  - [ ] Execute manual Chrome checklist serving www setting LAN base filling denom plus kasir then preview then send to physical receipt plus negatives empty kasir and zero total show zero requests in Network tab plus PC off shows clear error with buttons reenabled, acceptance physical receipt prints and negatives behave, file paths www/index.html plus www/js/print.js plus www/js/lan.js plus www/js/config.js, verification command `python -m http.server --directory www 8000`
+## Done
+When every checkbox is `[x]`, run:
+`Move-Item -LiteralPath ".agents/tasks/2026-10-11-print-send.md" -Destination ".agents/tasks/done/"`

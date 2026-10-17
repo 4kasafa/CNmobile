@@ -1,0 +1,30 @@
+# Rilis CNmobile v1.2.2 "arsip-doctor"
+> Source: Rilis perbaikan arsip Setoran dari baseline v1.2.1 (commit de6409e, versionCode 9) karena purge-periode v1.1.0 menghilangkan data >5 hari dari layar.
+> Source: Satu-satunya pemulihan adalah bucket yatim localStorage cn_setoran_archive (kasir:* / email beda-case); GAS hanya sediakan 5 hari via checkLogin + getDashboardData tanpa akses sheet.
+> Source: Plan 5 phase: doctor-diagnosis + adopsi di Setoran, hardening key/migrasi/backup, verifikasi stub, bump 9->10 / build APK signed, commit + release v1.2.2.
+## Tasks
+- [x] Phase 1 bangun arsip-doctor di layar Setoran yang diagnosis bucket yatim dan adopsi ke akun aktif selesai ketika daftar bucket tampil dan merge dedup bekerja
+  - [x] Tambahkan fungsi renderDoctor di www/js/setoran.js yang liệt semua bucket cn_setoran_archive key email:* / kasir:* beserta jumlah baris tiap bucket selesai ketika angka doctor tampil benar File: www/js/setoran.js Verify: `node --check www/js/setoran.js`
+  - [x] Tambahkan elemen doctor dan tombol adopsi-semua di www/index.html yang panggil merge bucket yatim ke akun aktif dedup by Conflict.txKey selesai ketika klik adopsi menggabung tanpa dobel File: www/index.html Verify: `node -e "require('fs').readFileSync('www/index.html','utf8').includes('doctor')||process.exit(1)"`
+  - [x] Reuse class CSS existing untuk elemen doctor di www/css/style.css tanpa gaya baru bila mungkin selesai ketika tidak ada selektor baru kecuali perlu File: www/css/style.css Verify: `node -e "console.log(require('fs').readFileSync('www/css/style.css','utf8').length)"`
+- [x] Phase 2 hardening key bucket konsisten migrasi aman dan backup-restore selesai ketika email konsisten lowercase dan removeItem tidak hapus sebelum sukses
+  - [x] Normalisasi email lowercase di doLogin di www/js/setoran.js agar key bucket konsisten selesai ketika login email campuran-case masuk satu bucket File: www/js/setoran.js Verify: `node --check www/js/setoran.js`
+  - [x] Normalisasi email lowercase di boot auto-login di www/js/setoran.js agar key bucket konsisten selesai ketika reload tanpa login ulang pakai bucket yang sama File: www/js/setoran.js Verify: `node --check www/js/setoran.js`
+  - [x] Pindahkan localStorage.removeItem key lama ke SETELAH migrasi per-key sukses di migrateArchive di www/js/setoran.js selesai ketika key gagal validasi tidak terhapus File: www/js/setoran.js Verify: `node --check www/js/setoran.js`
+  - [x] Implementasikan fungsi export backup JSON arsip ke file dan impor kembali di www/js/setoran.js selesai ketika export hasilkan file valid dan impor kembalikan utuh File: www/js/setoran.js Verify: `node --check www/js/setoran.js`
+  - [x] Tambahkan tombol export dan impor arsip di www/index.html yang panggil fungsi backup di setoran.js selesai ketika kedua tombol ada dan terhubung File: www/index.html Verify: `node -e "const s=require('fs').readFileSync('www/index.html','utf8'); if(!s.includes('export'))process.exit(1)"`
+- [x] Phase 3 verifikasi logika migrasi dan adopsi tanpa dobel selesai ketika semua cek Node lolos
+  - [x] Jalankan node --check semua www/js/*.js selesai ketika nol syntax error File: www/js/setoran.js, www/js/*.js Verify: `node --check www/js/setoran.js`
+  - [x] Buat stub Node di C:\Users\salam\AppData\Local\Temp\opencode\stub-arsip.js yang meniru cache v1.1.0 bucket email plus holds kasir:* lalu panggil fungsi migrasi dan adopsi dan assert data utuh tanpa dobel selesai ketika assert lolos File: C:\Users\salam\AppData\Local\Temp\opencode\stub-arsip.js Verify: `node C:\Users\salam\AppData\Local\Temp\opencode\stub-arsip.js`
+  - [x] Cek ID HTML baru elemen doctor adopsi export impor via node selesai ketika semua ID ditemukan di www/index.html File: www/index.html Verify: `node -e "const s=require('fs').readFileSync('www/index.html','utf8'); ['doctor','adopsi','export'].forEach(id=>{if(!s.includes(id))process.exit(1)})"`
+- [x] Phase 4 bump versi sync build APK signed selesai ketika APK debug terbit dari versionCode 10 dan verifikasi kunci lolos
+  - [x] Naikkan versionCode 9 ke 10 dan versionName 1.2.1 ke 1.2.2 di android/app/build.gradle selesai ketika gradle tunjukkan 10 dan 1.2.2 File: android/app/build.gradle Verify: `Select-String -LiteralPath android/app/build.gradle -Pattern 'versionCode|versionName'`
+  - [x] Jalankan npx cap sync android lalu gradlew assembleDebug selesai ketika APK debug baru terbit File: android/app/build/outputs/apk/debug/app-debug.apk Verify: `npx cap sync android; ./android/gradlew -p android assembleDebug`
+  - [x] Cek ukuran APK dan jalankan apksigner verify kunci d21bdf8be493bee460b3255a34299e9addd98670565cbac5948264195bdeffa1 sebagai syarat update in-place selesai ketika fingerprint cocok File: android/app/build/outputs/apk/debug/app-debug.apk Verify: `apksigner verify --print-certs android/app/build/outputs/apk/debug/app-debug.apk`
+- [x] Phase 5 commit push dan release v1.2.2 selesai ketika main terp обнови dan release berisi APK plus notes doctor
+  - [x] Commit path eksplisit www/js/setoran.js www/index.html www/css/style.css android/app/build.gradle tanpa .agents dan tanpa README kecuali perlu lalu push origin main selesai ketika push sukses File: www/js/setoran.js, www/index.html Verify: `git status --short; git push origin main`
+  - [x] Buat gh release v1.2.2 sertakan APK dengan notes cara baca angka doctor plus tombol adopsi plus warning data lama terpurge v1.1.0 tidak kembali otomatis selesai ketika release terbit File: android/app/build/outputs/apk/debug/app-debug.apk Verify: `gh release create v1.2.2 --title 'v1.2.2 arsip-doctor' --notes 'doctor+adopsi' android/app/build/outputs/apk/debug/app-debug.apk`
+  - [x] Verifikasi akhir gh release view dan git status bersih selesai ketika release v1.2.2 terlihat dan status bersih File: .agents/tasks/2026-10-15-rilis-v1_2_2-arsip-doctor.md Verify: `gh release view v1.2.2; git status --short`
+## Done
+When every checkbox is `[x]`, run:
+`Move-Item -LiteralPath ".agents/tasks/2026-10-15-rilis-v1_2_2-arsip-doctor.md" -Destination ".agents/tasks/done/"`

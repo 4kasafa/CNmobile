@@ -14,7 +14,7 @@
   <header id="topbar">
     <div class="prompt-wrap">
       <span class="ps1">┌──<span class="pu">(mobile@cn)</span><span class="pp" id="pp-path">-[setoran]</span></span>
-      <span class="ps2"><span class="psym">└─$</span><select id="nav-select" aria-label="Pindah layar"><option value="setoran" selected>[setoran]</option><option value="live">[live]</option><option value="print">[print]</option><option value="settings">[settings]</option></select></span>
+      <span class="ps2"><span class="psym">└─$</span><select id="nav-select" aria-label="Pindah layar"><option value="setoran" selected>[setoran]</option><option value="live">[live]</option><option value="print">[print]</option><option value="comp">[comp]</option></select></span>
     </div>
     <button id="btn-refresh" type="button" aria-label="Muat ulang">↻</button>
   </header>
@@ -65,9 +65,9 @@
   <section id="view-live" hidden aria-label="Live">
     <p class="cmdline">┌──<span class="pu">(live@cn)</span><span class="pp">-[connect]</span></p>
     <div id="live-bar">
-      <label for="in-lan">└─ pc</label>
-      <input id="in-lan" type="text" inputmode="url" placeholder="http://192.168.1.5:8765">
-      <span class="cmds"><button id="btn-live-toggle" type="button">[buka]</button> <button id="btn-bg" type="button">[bg:off]</button> <span id="live-status">[--]</span><span id="live-beat" class="dim"></span></span>
+      <label for="live-pcs">└─ pc</label>
+      <span id="live-pcs" class="dim">--</span>
+      <span class="cmds"><button id="btn-live-toggle" type="button">[buka]</button> <button id="btn-live-add" type="button" hidden>[+tambah pc]</button> <button id="btn-bg" type="button">[bg:off]</button> <span id="live-status">[--]</span><span id="live-beat" class="dim"></span></span>
     </div>
     <div id="live-banner" class="msg" hidden role="status">
       <span id="live-banner-text">└─ tx: 0 · tunai: Rp 0 · nontunai: Rp 0 · semua: Rp 0</span>
@@ -126,38 +126,55 @@
     </div>
   </section>
 
-  <section id="view-settings" hidden aria-label="Settings">
-    <p class="cmdline">┌──<span class="pu">(settings@cn)</span><span class="pp">-[ip]</span></p>
-    <div id="set-status" title="dobel-ketuk: buka/tutup">
-      <span id="set-status-info">└─ pc: --</span>
-      <span id="set-status-badge" class="dim">[--]</span>
+  <section id="view-comp" hidden aria-label="Computer">
+    <p class="cmdline">┌──<span class="pu">(comp@cn)</span><span class="pp">-[daftar]</span></p>
+    <div id="comp-list-wrap">
+      <p class="sumline">└─ <button id="comp-add" type="button">[+ tambah]</button> <button id="comp-check" type="button">[cek]</button></p>
+      <div id="comp-list"></div>
+      <div id="comp-msg" class="msg" aria-live="polite"></div>
     </div>
-    <div id="set-msg" class="msg" aria-live="polite"></div>
-    <p class="cmdline">┌──<span class="pu">(settings@cn)</span><span class="pp">-[watcher]</span></p>
-    <p class="sumline">└─ status: <span id="watch-status" class="dim">[--]</span><span class="cmds"><button id="btn-watch-on" type="button">[nyala]</button><button id="btn-watch-off" type="button">[mati]</button><button id="btn-watch-reload" type="button">[muat ulang]</button></span></p>
-    <div class="field">
-      <label for="set-watch-pin">└─ pin watcher</label>
-      <input id="set-watch-pin" type="password" inputmode="numeric" autocomplete="off" placeholder="••••••">
-      <span class="cmds"><button id="btn-watch-peek" type="button">[lihat]</button></span>
+
+    <div id="pick-wrap" hidden>
+      <p class="cmdline"><span id="pick-title">pilih computer</span> <button id="pick-cancel" type="button">[batal]</button></p>
+      <div id="pick-box"></div>
+      <p id="pick-foot" class="sumline" hidden>└─ <button id="pick-ok" type="button">[mulai]</button> <button id="pick-new" type="button">[+ pc baru]</button></p>
     </div>
-    <p class="cmdline">┌──<span class="pu">(settings@cn)</span><span class="pp">-[wipe]</span></p>
-    <div class="field">
-      <label for="set-wipe-pin">└─ pin wipe</label>
-      <input id="set-wipe-pin" type="password" inputmode="numeric" autocomplete="off" placeholder="••••••">
-      <span class="cmds"><button id="btn-wipe-peek" type="button">[lihat]</button></span>
+
+    <div id="ctl-panel" hidden>
+      <p class="cmdline"><span id="ctl-title">kontrol: --</span> <button id="ctl-back" type="button">[kembali]</button></p>
+      <div id="set-status" title="dobel-ketuk: buka/tutup">
+        <span id="set-status-info">└─ --</span>
+        <span id="set-status-badge" class="dim">[--]</span>
+      </div>
+      <p class="dim" id="ctl-detail">└─ --</p>
+      <div id="set-msg" class="msg" aria-live="polite"></div>
+      <p class="cmdline">┌──<span class="pu">(comp@cn)</span><span class="pp">-[watcher]</span></p>
+      <p class="sumline">└─ status: <span id="watch-status" class="dim">[--]</span><span class="cmds"><button id="btn-watch-on" type="button">[nyala]</button><button id="btn-watch-off" type="button">[mati]</button><button id="btn-watch-reload" type="button">[muat ulang]</button></span></p>
+      <div class="field">
+        <label for="set-watch-pin">└─ pin watcher</label>
+        <input id="set-watch-pin" type="password" inputmode="numeric" autocomplete="off" placeholder="••••••">
+        <span class="cmds"><button id="btn-watch-peek" type="button">[lihat]</button></span>
+      </div>
+      <p class="cmdline">┌──<span class="pu">(comp@cn)</span><span class="pp">-[wipe]</span></p>
+      <div class="field">
+        <label for="set-wipe-pin">└─ pin wipe</label>
+        <input id="set-wipe-pin" type="password" inputmode="numeric" autocomplete="off" placeholder="••••••">
+        <span class="cmds"><button id="btn-wipe-peek" type="button">[lihat]</button></span>
+      </div>
+      <div class="field">
+        <label for="set-wipe-confirm">└─ ketik HAPUS</label>
+        <input id="set-wipe-confirm" type="text" autocomplete="off" placeholder="HAPUS">
+        <span class="cmds"><button id="btn-wipe" type="button" class="btn-danger">[hapus]</button></span>
+        <span class="dim" id="ctl-wipe-why"></span>
+      </div>
+      <p class="cmdline">┌──<span class="pu">(comp@cn)</span><span class="pp">-[logs]</span></p>
+      <div class="field">
+        <label for="set-log-pin">└─ pin log</label>
+        <input id="set-log-pin" type="password" inputmode="numeric" autocomplete="off" placeholder="••••••">
+        <span class="cmds"><button id="btn-log-peek" type="button">[lihat]</button><button id="btn-log-load" type="button">[muat]</button></span>
+      </div>
+      <pre id="log-pre" aria-label="Log PC">belum dimuat</pre>
     </div>
-    <div class="field">
-      <label for="set-wipe-confirm">└─ ketik HAPUS</label>
-      <input id="set-wipe-confirm" type="text" autocomplete="off" placeholder="HAPUS">
-      <span class="cmds"><button id="btn-wipe" type="button" class="btn-danger">[hapus]</button></span>
-    </div>
-    <p class="cmdline">┌──<span class="pu">(settings@cn)</span><span class="pp">-[logs]</span></p>
-    <div class="field">
-      <label for="set-log-pin">└─ pin log</label>
-      <input id="set-log-pin" type="password" inputmode="numeric" autocomplete="off" placeholder="••••••">
-      <span class="cmds"><button id="btn-log-peek" type="button">[lihat]</button><button id="btn-log-load" type="button">[muat]</button></span>
-    </div>
-    <pre id="log-pre" aria-label="Log PC">belum dimuat</pre>
   </section>
 
   <div id="sheet-wrap" hidden>
@@ -176,12 +193,13 @@
 <script src="js/gas.js" defer></script>
 <script src="js/conflict.js" defer></script>
 <script src="js/setoran.js" defer></script>
-<script src="js/config.js" defer></script>
 <script src="js/store.js" defer></script>
 <script src="js/lan.js" defer></script>
+<script src="js/txmerge.js" defer></script>
+<script src="js/comps.js" defer></script>
 <script src="js/live.js" defer></script>
 <script src="js/print.js" defer></script>
-<script src="js/settings.js" defer></script>
+<script src="js/comp.js" defer></script>
 <script src="js/app.js" defer></script>
 </body>
 </html>

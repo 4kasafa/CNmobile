@@ -151,6 +151,8 @@ input::placeholder { color: #54676f; }
 .tag.lebih { color: var(--mint); }
 .tag.pas { color: var(--fog); }
 .tag.conf { color: var(--signal); }
+/* asal PC pada baris tx live (multi-PC) — biru Kali, biar tak Popup dari kategori */
+.tag.pc { color: var(--kali); }
 .tx .diff { min-height: 44px; padding: 6px 4px; font-size: 10px; }
 /* ponytail: baris baru live flicker 5x/1dtk (seluruh baris via opacity) */
 @media (prefers-reduced-motion: no-preference) {
@@ -173,11 +175,8 @@ input::placeholder { color: #54676f; }
 }
 #view-live .cmdline { margin: 8px 0 2px; }
 #live-bar label { display: inline; color: var(--fog); font-size: 9px; line-height: 1.35; margin: 0; white-space: nowrap; }
-#in-lan {
-  font: inherit; font-size: 9px; font-weight: 400; color: var(--fog); background: none;
-  border: 0; border-radius: 0;
-  min-height: 24px; padding: 2px; flex: 1 1 auto; width: auto; min-width: 0;
-}
+/* live: target bukan input lagi, tapi nama PC hasil picker */
+#live-pcs { font-size: 9px; color: var(--paper); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #live-bar .cmds { display: flex; align-items: center; gap: 4px; white-space: nowrap; margin-top: 0; }
 #live-bar button { min-height: 24px; min-width: 0; padding: 2px 4px; }
 #live-status { white-space: nowrap; color: var(--signal); font-weight: 700; }
@@ -218,9 +217,18 @@ input::placeholder { color: #54676f; }
 #val-diff.pos { color: var(--mint); }
 #print-actions, #print-preview-actions { display: flex; gap: 12px; flex-wrap: wrap; }
 #print-actions button, #print-preview-actions button { min-height: 44px; padding: 10px 4px; }
-#view-settings .cmds { display: inline-flex; gap: 4px; }
-#view-settings .cmds button { min-height: 24px; min-width: 0; padding: 2px 4px; }
-#view-settings .field .cmds button { min-height: 24px; min-width: 0; padding: 2px 4px; }
+#view-comp .cmds { display: inline-flex; gap: 4px; }
+#view-comp .cmds button { min-height: 24px; min-width: 0; padding: 2px 4px; }
+#view-comp .field .cmds button { min-height: 24px; min-width: 0; padding: 2px 4px; }
+#view-comp .cmdline { margin: 8px 0 2px; }
+/* daftar computer: tap = no-op, hold 900ms -> [ubah]/[hapus]. Cegah select teks + scroll gestur. */
+#comp-list .tx { touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+#comp-list .tx.holding { opacity: .6; }
+/* baris form tambah/ubah: input full-width di dalam .tx-bot */
+#comp-list .tx-bot input { font: inherit; font-size: 10px; color: var(--paper); background: none; border: 0; border-radius: 0; min-height: 26px; padding: 1px 4px; flex: 1 1 120px; min-width: 0; }
+#comp-list .tx-bot label { flex: 0 0 auto; }
+#pick-box .tx { cursor: pointer; }
+#ctl-detail { margin: 0; font-size: 10px; }
 /* ponytail: baris status settings — cermin #session-line, tanpa header ┌── */
 #set-status {
   display: flex; justify-content: space-between; align-items: center; gap: 8px;

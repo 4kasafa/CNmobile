@@ -18,7 +18,8 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
 
-// ponytail: bridge tipis start/stop/openBatterySettings — tanpa state, tanpa event.
+// ponytail: bridge tipis start(state)/stop/openBatterySettings — tanpa event.
+// v1.6.0: JS tak lagi kirim teks notif; ia kirim state absolut, service yang polling + menulis notif.
 @CapacitorPlugin(
     name = "BgSync",
     permissions = @Permission(alias = "notif", strings = { Manifest.permission.POST_NOTIFICATIONS })
@@ -32,38 +33,30 @@ public class BgSyncPlugin extends Plugin {
             requestPermissionForAlias("notif", call, "notifCb");
             return;
         }
-        startSvc();
+        startSvc(call.getString("state", null));
         call.resolve();
     }
 
     @PermissionCallback
     private void notifCb(PluginCall call) {
         if (getPermissionState("notif") == PermissionState.GRANTED) {
-            startSvc();
+            startSvc(call.getString("state", null));
             call.resolve();
         } else {
             call.reject("denied-notif");
         }
     }
 
-    private void startSvc() {
+    private void startSvc(String state) {
         Context ctx = getContext();
-        ContextCompat.startForegroundService(ctx, new Intent(ctx, BgSyncService.class));
+        Intent intent = new Intent(ctx, BgSyncService.class);
+        if (state != null && !state.isEmpty()) intent.putExtra("state", state);
+        ContextCompat.startForegroundService(ctx, intent);
     }
 
     @PluginMethod
     public void stop(PluginCall call) {
         getContext().stopService(new Intent(getContext(), BgSyncService.class));
-        call.resolve();
-    }
-
-    @PluginMethod
-    public void update(PluginCall call) {
-        String text = call.getString("text", "Live sync jalan");
-        Context ctx = getContext();
-        Intent intent = new Intent(ctx, BgSyncService.class);
-        intent.putExtra("text", text);
-        ContextCompat.startForegroundService(ctx, intent); // aman: service sudah foreground, hanya antar teks
         call.resolve();
     }
 

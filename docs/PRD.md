@@ -23,6 +23,22 @@ Non-tujuan: tidak input/edit transaksi, tidak print langsung dari HP (Bluetooth)
 ## 2. Keputusan kunci (locked)
 
 - 2 layar saja: **Live** + **Setoran** (+ tombol Print di Live).
+- **Daftar computer** (tab `[comp]`, menggantikan `[settings]`, vv1.6.0+): tiap PC = `nama` +
+  `base URL` (`http://IP:8765`) di `localStorage cn_comps`; badge `[ok]/[OK·lama]/[putus]` dari
+  `GET /api/status` (fallback `GET /api/health` untuk PC <1.6.0), dicek saat tab dibuka + tombol `[cek]`.
+  Gestur: tap tunggal no-op · dobel-tap → halaman **control** (status + watcher + wipe + log) ·
+  tahan 900ms → `[ubah]`/`[hapus]`→`[yakin?]`. **Wipe diblokir di HP** bila PC ikut sesi aktif.
+- Sesi Live: **1 sesi, N PC**. `[buka]` → picker berisi **hanya PC tersambung** (`Comps.online()`
+  = cek ulang lalu filter), centang beberapa, `[mulai]`. Baris picker menampilkan tombol tambah
+  PC baru. `[+tambah pc]` menyisip PC ke sesi yang sedang jalan (PC yang sudah ikut sesi tak muncul).
+- Multi-PC: `server_id` bisa bentrok antar PC → identitas baris `tid = "<comp_id>:<server_id>"`,
+  bucket tx `"<sessionId>|<comp_id>"`, `since` + `complete` **independen per PC** (satu PC putus
+  tak menjatuhkan PC lain; yang nyala lagi otomatis tertangkap), `no_urut`/baris HILANG dihitung
+  **per PC** lalu digabung `created_at` DESC (`js/txmerge.js`, fungsi murni + `npm test`).
+  Baris tx dapat tag nama PC; banner totals tetap satu baris gabungan. Riwayat sesi menampilkan
+  nama PC, bukan URL. PIN tetap hanya di memori per aksi (tak pernah disimpan).
+- Print struk: **pilih PC tiap kirim** (picker PC tersambung, PC terakhir dipakai tercentang).
+  Tidak ada asumsi "PC printer" — printer bisa ada di PC mana pun dalam daftar.
 - Data live: polling `GET /api/outbox?since_id=` tiap 2 detik (cukup untuk 1 HP; tanpa WebSocket).
 - Setoran: fetch GAS **langsung dari HP** (kontrak sama dengan `gas_service.py` repo lama).
 - Pairing: scan QR dari tray PC → simpan `{base_url, token}` di `localStorage`.
@@ -48,20 +64,22 @@ CNmobile/
     manifest.webmanifest       # nama, ikon, display standalone (untuk mode PWA fallback)
     sw.js                      # minimal (cache shell) — relevan untuk mode browser, diabaikan di native
     css/style.css              # mobile-first, 1 kolom, sentuh ≥44px
-    js/config.js               # simpan/baca {base_url, token} localStorage
-    js/store.js                # lapisan storage: SQLite native (APK) / sql.js+IndexedDB (Chrome) — API sama.
-                               #   Skema: transactions(uuid PK, origin, amount, category, label, ts, edited,
-                               #   edited_ts), setoran_cache(+_conflict), meta(kv: last_server_id, last_gas_sync)
+    js/store.js                # lapisan storage: sesi multi-PC (pcs[]) + tx per PC + isian manual
+                                #   (kunci "<sessionId>|<comp_id>", tid "<comp_id>:<server_id>")
+    js/txmerge.js              # fungsi murni: rantai no_urut (baris HILANG) per PC -> gabung DESC
     js/sync.js                 # pull since_id → upsert by uuid → ack; watermark last_server_id di meta
     js/conflict.js             # merge setoran GAS vs cache (port _tx_key/_is_conflict/periode) + bottom-sheet
+    js/comps.js                # daftar computer (nama+base URL) + status koneksi runtime + migrasi key lama
     js/lan.js                  # GET health/transactions/totals, POST print (header X-Token)
     js/gas.js                  # PORT dari gas_service.py: call_api/login/get_dashboard_data via fetch
-                               #   + hitung total_kurang/total_lebih (gas_service.py:76-94)
-                               #   + filter periode 28–27 & merge by (tanggal,shift,cabang) (kasir_tab.py:267-278,446-458)
-    js/live.js                 # polling since_id, render list + totals, tombol print per struk/periode
+                                #   + hitung total_kurang/total_lebih (gas_service.py:76-94)
+                                #   + filter periode 28–27 & merge by (tanggal,shift,cabang) (kasir_tab.py:267-278,446-458)
+    js/live.js                 # polling since per PC, render list + tag PC + totals, tombol print per struk/periode
+    js/comp.js                 # tab [comp]: daftar + badge + picker PC + halaman control (watcher/wipe/log)
     js/setoran.js              # login (email/pass, deviceId:"CNmobile"), render dashboard 5 hari
     js/app.js                  # glue tab + pairing flow
     icons/                     # icon-192/512 + maskable
+  test/comp-check.js          # assert-based check logika multi-PC (npm test, tanpa framework)
   android/                     # hasil `npx cap add android` (dicommit, kecuali build/ via gitignore bawaan)
   docs/TEST-CHECKLIST.md       # uji manual: pairing, live <3s, print, GAS, ganti WiFi/IP
 ```

@@ -440,23 +440,32 @@ var Print = (function () {
       if (b) b.disabled = !!busy;
     });
   }
+  // printer bisa ada di PC mana pun: pilih tiap kirim (PC tersambung saja, terakhir dipakai tercentang).
+  // Batal/tutup picker = tak ada POST /api/print terkirim.
   async function doSend() {
     var kasir = $("in-kasir") ? $("in-kasir").value.trim() : "";
     if (!kasir) { msg("└─ pilih/isi kasir dulu.", "err"); if ($("in-kasir")) $("in-kasir").focus(); return; }
     if ($("in-kasir-id") && !$("in-kasir-id").value.trim()) { msg("└─ isi id kasir dulu.", "err"); $("in-kasir-id").focus(); return; }
     if (fisikTotal() === 0) { msg("└─ total fisik nol, isi denominasi dulu.", "err"); return; }
-    var base = LanConfig.get();
-    if (!base) { msg("└─ isi IP PC di [live] dulu.", "err"); return; }
+    if (typeof Comp === "undefined" || !Comp.pick) { msg("└─ ui computer belum siap.", "err"); return; }
+    var lu = Comps.lastUsed();
+    Comp.pick({ title: "kirim ke pc", exclude: {}, preselect: lu ? lu.id : null }, function (comps) {
+      if (!comps || !comps.length) { msg("└─ tak ada PC dipilih: batal kirim.", "err"); return; }
+      sendTo(comps[0]);
+    });
+  }
+  async function sendTo(comp) {
     var my = ++S.seq; // basi: abaikan hasil bila sesi berganti di tengah kirim
     setSendBusy(true);
-    msg("└─ mengirim ke PC...", "");
-    var r = await Lan.print(base, buildPayload());
+    msg("└─ mengirim ke " + comp.name + " ...", "");
+    try { Comps.touch(comp.id); } catch (e) {}
+    var r = await Lan.print(comp.base, buildPayload());
     setSendBusy(false); // selalu: jangan kunci tombol bila sesi berganti di tengah kirim
     if (my !== S.seq) return; // basi: hasil diabaikan, tombol sudah aktif lagi
     if (r.ok && r.data) {
       var t = (r.data.total != null) ? " · fisik " + rupiah(r.data.total) : "";
       var nt = (r.data.nontunai > 0) ? " · NT " + rupiah(r.data.nontunai) : "";
-      msg("└─ tercetak di " + (r.data.printer || "printer") + t + nt, "ok");
+      msg("└─ tercetak di " + (comp.name + "/" + (r.data.printer || "printer")) + t + nt, "ok");
     } else {
       msg("└─ gagal: " + ((r && r.error) || "tanpa respon"), "err");
     }

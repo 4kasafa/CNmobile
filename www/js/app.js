@@ -1,10 +1,11 @@
-/* Glue nav: dropdown baris-2 -> 3 view, ingat pilihan. Tanpa framework. */
+/* Glue nav: dropdown baris-2 -> 4 view, ingat pilihan. Tanpa framework. */
 (function () {
   "use strict";
   var KEY = "cn_view";
+  var VIEWS = ["setoran", "live", "print", "comp"];
   function $(id) { return document.getElementById(id); }
   function show(v) {
-    ["setoran", "live", "print", "settings"].forEach(function (k) {
+    VIEWS.forEach(function (k) {
       var el = $("view-" + k);
       if (el) el.hidden = (k !== v);
     });
@@ -26,11 +27,13 @@
     } catch (e3) {}
     var v = "setoran";
     try { v = localStorage.getItem(KEY) || "setoran"; } catch (e) {}
-    if (["setoran", "live", "print", "settings"].indexOf(v) < 0) v = "setoran";
+    if (VIEWS.indexOf(v) < 0) v = "setoran";
     show(v);
     $("nav-select").addEventListener("change", function (e) {
       show(e.target.value);
       try { localStorage.setItem(KEY, e.target.value); } catch (e2) {}
     });
+    // tab yang dipulihkan harus memicu listener tab (mis. Comp.load() saat kembali ke [comp])
+    try { $("nav-select").dispatchEvent(new Event("change")); } catch (e4) {}
   });
 })();

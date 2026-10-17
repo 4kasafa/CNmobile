@@ -15,9 +15,10 @@ var Lan = (function () {
     return String(bodyErr || ("PC menolak (HTTP " + status + ")"));
   }
 
-  async function get(url) {
+  // ms opsional: cek list PC butuh cepat (2500), aksi tetap TIMEOUT_MS.
+  async function get(url, ms) {
     var ctrl = new AbortController();
-    var t = setTimeout(function () { ctrl.abort(); }, TIMEOUT_MS);
+    var t = setTimeout(function () { ctrl.abort(); }, toInt(ms) > 0 ? toInt(ms) : TIMEOUT_MS);
     try {
       var res = await fetch(url, { signal: ctrl.signal });
       if (!res.ok) return { ok: false, error: "HTTP " + res.status };
@@ -29,8 +30,8 @@ var Lan = (function () {
     }
   }
 
-  async function health(baseUrl) {
-    var r = await get(base(baseUrl) + "/api/health");
+  async function health(baseUrl, ms) {
+    var r = await get(base(baseUrl) + "/api/health", ms);
     if (!r.ok) return { ok: false, error: r.error };
     return { ok: !!(r.data && (r.data.ok === true || r.data.ok === undefined)), raw: r.data };
   }
@@ -106,8 +107,8 @@ var Lan = (function () {
   }
 
   // v1.6.0 (milik PC): status/log/port/pin/shutdown. PIN hanya argumen, tak disimpan.
-  async function statusGet(baseUrl) {
-    var r = await get(base(baseUrl) + "/api/status");
+  async function statusGet(baseUrl, ms) {
+    var r = await get(base(baseUrl) + "/api/status", ms);
     if (!r.ok) return { ok: false, error: r.error === "timeout" ? mapErr(0, null, true) : r.error, status: 0 };
     if (!r.data || r.data.version == null) return { ok: false, error: "PC versi lama, update dulu", status: 200 };
     return { ok: true, data: r.data, status: 200 };
