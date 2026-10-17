@@ -8,6 +8,9 @@ const config = {
   // Kunci HARUS "android" (root): native CapConfig membaca
   // android.allowMixedContent, bukan server.allowMixedContent.
   android: { allowMixedContent: true },
+  // ponytail: default Capacitor = #ffffff -> WebView putih sesaat sebelum CSS cat.
+  // App ini gelap (#000) sejak awal, samakan.
+  backgroundColor: '#000000',
 };
 
 module.exports = config;
