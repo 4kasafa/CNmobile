@@ -387,7 +387,8 @@ var Comp = (function () {
 
   /* ---------- picker PC (dipakai Live + print) ---------- */
 
-  // opts: {title, exclude:{id:true}, preselect:id} -> done([{id,name,base}])
+  // opts: {title, exclude:{id:true}, preselect:id, after:idElemen} -> done([{id,name,base}])
+  // after: satu elemen picker dipindah tepat di bawah pemicunya (mis. #live-bar, #print-actions)
   function pick(opts, done) {
     opts = opts || {};
     var wrap = $("pick-wrap");
@@ -400,7 +401,10 @@ var Comp = (function () {
     if (opts.preselect && !pickExclude[opts.preselect]) pickSel[opts.preselect] = true;
     var title = $("pick-title");
     if (title) title.textContent = (opts.title || "pilih computer") + " · tersambung saja";
+    var anchor = opts.after ? $(opts.after) : null;
+    if (anchor && anchor.parentNode) anchor.insertAdjacentElement("afterend", wrap); // pindah, bukan klon
     wrap.hidden = false;
+    try { wrap.scrollIntoView({ block: "nearest" }); } catch (e) {}
     pickRender("[cek...]", null);
     Comps.online().then(function (list) {
       if (gen !== pickGen) return; // picker ditutup/dibuka lagi: buang hasil basi

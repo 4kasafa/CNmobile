@@ -442,14 +442,14 @@ var Print = (function () {
   }
   // printer bisa ada di PC mana pun: pilih tiap kirim (PC tersambung saja, terakhir dipakai tercentang).
   // Batal/tutup picker = tak ada POST /api/print terkirim.
-  async function doSend() {
+  async function doSend(afterId) {
     var kasir = $("in-kasir") ? $("in-kasir").value.trim() : "";
     if (!kasir) { msg("└─ pilih/isi kasir dulu.", "err"); if ($("in-kasir")) $("in-kasir").focus(); return; }
     if ($("in-kasir-id") && !$("in-kasir-id").value.trim()) { msg("└─ isi id kasir dulu.", "err"); $("in-kasir-id").focus(); return; }
     if (fisikTotal() === 0) { msg("└─ total fisik nol, isi denominasi dulu.", "err"); return; }
     if (typeof Comp === "undefined" || !Comp.pick) { msg("└─ ui computer belum siap.", "err"); return; }
     var lu = Comps.lastUsed();
-    Comp.pick({ title: "kirim ke pc", exclude: {}, preselect: lu ? lu.id : null }, function (comps) {
+    Comp.pick({ title: "kirim ke pc", exclude: {}, preselect: lu ? lu.id : null, after: afterId || "print-actions" }, function (comps) {
       if (!comps || !comps.length) { msg("└─ tak ada PC dipilih: batal kirim.", "err"); return; }
       sendTo(comps[0]);
     });
@@ -484,8 +484,9 @@ var Print = (function () {
     });
     if ($("btn-print-preview")) $("btn-print-preview").addEventListener("click", doPreview);
     if ($("btn-print-clear")) $("btn-print-clear").addEventListener("click", doClear);
-    if ($("btn-print-send")) $("btn-print-send").addEventListener("click", doSend);
-    if ($("btn-print-send2")) $("btn-print-send2").addEventListener("click", doSend);
+    // anchor per tombol: picker muncul tepat di bawah [kirim] yang dipencet
+    if ($("btn-print-send")) $("btn-print-send").addEventListener("click", function () { doSend("print-actions"); });
+    if ($("btn-print-send2")) $("btn-print-send2").addEventListener("click", function () { doSend("print-preview-actions"); });
     if ($("btn-print-back")) $("btn-print-back").addEventListener("click", hidePreview);
     if ($("btn-size-58")) $("btn-size-58").addEventListener("click", function () { S.size = "58"; saveMeta(); $("receipt-pre").textContent = generateReceipt(width()); paintSizeBtns(); });
     if ($("btn-size-80")) $("btn-size-80").addEventListener("click", function () { S.size = "80"; saveMeta(); $("receipt-pre").textContent = generateReceipt(width()); paintSizeBtns(); });

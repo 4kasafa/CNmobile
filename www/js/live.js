@@ -416,7 +416,7 @@ var Live = (function () {
     if (!S.sessionId) return;
     var have = {};
     for (var i = 0; i < S.pcs.length; i++) have[S.pcs[i].comp_id] = true;
-    pick({ title: "tambah pc", exclude: have }, async function (comps) {
+    pick({ title: "tambah pc", exclude: have, after: "live-bar" }, async function (comps) {
       if (!comps || !comps.length) return;
       var s = await Store.addPc(S.sessionId, comps[0]);
       if (!s) { status("[sudah ada di sesi]", "bad"); return; }
@@ -528,7 +528,7 @@ var Live = (function () {
   async function toggle() {
     var s = S.sessionId ? await Store.getSession(S.sessionId) : null;
     if (s && s.status === "open") await closeCurrent();
-    else pick({ title: "pilih computer", exclude: {} }, openSession);
+    else pick({ title: "pilih computer", exclude: {}, after: "live-bar" }, openSession);
   }
 
   async function retryNow() {
